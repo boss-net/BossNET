@@ -2,30 +2,75 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [main, master, devops, 'release/**']
+    tags: [v*]
   pull_request:
-    branches: [ master, main ]
+    branches: [main, master, devops, 'release/**']
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual trigger'
+        required: true
+        default: 'Manual workflow trigger'
+
+# Cancel previous runs for the same PR/branch when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.10'
+  POETRY_VERSION: '1.6.1'
 
 jobs:
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: [3.8, 3.9, "3.10"]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+        os: [ubuntu-latest]
+        exclude:
+          - python-version: '3.8'
+            os: windows-latest
+          - python-version: '3.9'
+            os: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpq-dev python3-dev
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-python-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-python-${{ matrix.python-version }}-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov flake8 black isort
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install poetry
+        poetry config virtualenvs.create false
+        poetry install --no-interaction --no-ansi --with dev,docs
 
     - name: Run code formatting check
       run: |
@@ -37,79 +82,100 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
+    - name: Run type checking
+      run: |
+        mypy src/
+
     - name: Run tests with pytest
       run: |
-        pytest tests/ --cov=src/ --cov-report=xml
+        pytest tests/ --cov=src/ --cov-report=xml --cov-report=term
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       with:
         file: ./coverage.xml
         fail_ci_if_error: true
+        verbose: true
 
   security:
+    name: Security Checks
     runs-on: ubuntu-latest
+    needs: test
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install security scanning tools
       run: |
-        pip install bandit safety
+        python -m pip install --upgrade pip
+        pip install bandit safety pip-audit
 
-    - name: Run security scan with bandit
+    - name: Run bandit security scan
       run: |
         bandit -r src/ -f json -o bandit-report.json
 
     - name: Check dependencies for known vulnerabilities
       run: |
-        safety check
+        safety check --full-report
+        pip-audit --requirement requirements.txt
 
   deploy-docs:
+    name: Deploy Documentation
     needs: [test, security]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install dependencies
       run: |
-        pip install mkdocs mkdocs-material
+        pip install mkdocs-material mkdocs-coverage
 
     - name: Build docs
       run: |
-        mkdocs build
+        mkdocs build --strict --verbose
 
     - name: Deploy to GitHub Pages
+      id: deployment
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./site
+        keep_files: true
 
   deploy:
-    needs: [test, security]
+    name: Deploy to PyPI
+    needs: [test, security, deploy-docs]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
+        python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install dependencies
+    - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
         pip install build twine
@@ -120,12 +186,50 @@ jobs:
 
     - name: Check distribution
       run: |
-        twine check dist/*
+        twine check --strict dist/*
 
-    # Uncomment when ready to deploy to PyPI
-    # - name: Publish to PyPI
-    #   env:
-    #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-    #     TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-    #   run: |
-    #     twine upload dist/*
+    - name: Publish to PyPI
+      if: github.event_name != 'pull_request'
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload --non-interactive --skip-existing dist/*
+
+  dependency-update:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.actor == 'dependabot[bot]'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+
+    - name: Update dependencies
+      run: |
+        poetry update
+        poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore(deps): update dependencies"
+        title: "chore(deps): update dependencies"
+        body: |
+          This PR updates Python dependencies to their latest versions.
+
+          **This PR is automatically generated by GitHub Actions.**
+        branch: "deps/update-$(date +%s)"
+        delete-branch: true
+        author: "GitHub Actions <actions@github.com>"
+        committer: "GitHub Actions <actions@github.com>"
+        signoff: true
