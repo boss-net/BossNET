@@ -1,27 +1,27 @@
 """
-Student Performance Dashboard
----------------------------
-Interactive dashboard for analyzing student performance metrics.
-Enhanced version with proper database connectivity, data validation, and advanced analytics.
+Student Performance Dashboard - Real-time Analytics
+Interactive dashboard for analyzing student academic performance with live data updates.
 """
 
-import os
+import asyncio
+import hashlib
 import json
+import logging
+import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
+import dash
+import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import streamlit as st
-from sqlalchemy import create_engine, text, func
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
 import redis
-import hashlib
-from pydantic import BaseModel, Field, validator
+from dash import Input, Output, State, callback, dash_table, dcc, html
 from dotenv import load_dotenv
-import logging
+from plotly.subplots import make_subplots
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,764 +30,838 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Pydantic models for data validation
-class StudentPerformanceData(BaseModel):
-    """Data model for student performance records."""
-    student_id: str = Field(..., description="Unique student identifier")
-    student_name: str = Field(..., description="Full name of the student")
-    school_name: str = Field(..., description="Name of the school")
-    division: str = Field(..., description="Administrative division")
-    district: str = Field(..., description="District name")
-    upazila: str = Field(..., description="Upazila/Sub-district name")
-    gender: str = Field(..., description="Student gender")
-    age_group: str = Field(..., description="Age group category")
-    socioeconomic_status: Optional[str] = Field(None, description="Socioeconomic status")
-    has_disability: bool = Field(False, description="Disability indicator")
-    academic_year: str = Field(..., description="Academic year")
-    term: str = Field(..., description="Academic term")
-    subject_name: str = Field(..., description="Subject name")
-    assessment_type: str = Field(..., description="Type of assessment")
-    marks_obtained: float = Field(..., ge=0, description="Marks obtained")
-    max_marks: float = Field(..., gt=0, description="Maximum possible marks")
-    percentage: float = Field(..., ge=0, le=100, description="Percentage score")
-    grade_letter: str = Field(..., description="Letter grade")
-    is_passed: bool = Field(..., description="Pass/fail indicator")
-    assessment_date: datetime = Field(..., description="Date of assessment")
-    
-    @validator('percentage')
-    def validate_percentage(cls, v):
-        if not 0 <= v <= 100:
-            raise ValueError('Percentage must be between 0 and 100')
-        return v
-    
-    @validator('gender')
-    def validate_gender(cls, v):
-        valid_genders = ['Male', 'Female', 'Other', 'Unknown']
-        if v not in valid_genders:
-            raise ValueError(f'Gender must be one of {valid_genders}')
-        return v
-
-class DashboardFilters(BaseModel):
-    """Model for dashboard filters."""
-    academic_year: Optional[str] = None
-    term: Optional[str] = None
-    division: Optional[str] = None
-    district: Optional[str] = None
-    upazila: Optional[str] = None
-    school_name: Optional[str] = None
-    subject_name: Optional[str] = None
-    gender: Optional[str] = None
-    age_group: Optional[str] = None
-    socioeconomic_status: Optional[str] = None
-    has_disability: Optional[bool] = None
-    min_percentage: float = Field(0, ge=0, le=100)
-    max_percentage: float = Field(100, ge=0, le=100)
-    assessment_type: Optional[str] = None
-
-# Page configuration
-st.set_page_config(
-    page_title="Student Performance Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Initialize Dash app with Bootstrap theme
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
+    title="Student Performance Dashboard",
+    suppress_callback_exceptions=True,
 )
 
-# Custom CSS for better styling
-st.markdown("""
-    <style>
-    .main .block-container {
-        padding: 2rem 3rem;
-    }
-    .stDataFrame {
-        width: 100%;
-    }
-    .metric-card {
-        background-color: #f8f9fa;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
-    }
-    .performance-excellent { color: #28a745; font-weight: bold; }
-    .performance-good { color: #17a2b8; font-weight: bold; }
-    .performance-average { color: #ffc107; font-weight: bold; }
-    .performance-poor { color: #dc3545; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
+# Database connection
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/student_data_db")
+engine = create_engine(DATABASE_URL)
 
-# Initialize Redis connection for caching
+
+# Redis for caching
 def get_redis_client():
-    """Get Redis client for caching."""
     try:
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         return redis.from_url(redis_url, decode_responses=True)
     except Exception as e:
         logger.warning(f"Redis connection failed: {e}")
         return None
 
-def get_cache_key(data_type: str, filters: Dict) -> str:
-    """Generate cache key for data."""
-    filter_str = json.dumps(filters, sort_keys=True)
-    return f"student_performance:{data_type}:{hashlib.md5(filter_str.encode()).hexdigest()}"
 
-def get_cached_data(cache_key: str, ttl: int = 3600) -> Optional[pd.DataFrame]:
-    """Get data from cache."""
-    redis_client = get_redis_client()
-    if redis_client:
-        try:
-            cached_data = redis_client.get(cache_key)
-            if cached_data:
-                return pd.read_json(cached_data)
-        except Exception as e:
-            logger.warning(f"Cache retrieval failed: {e}")
-    return None
+redis_client = get_redis_client()
 
-def set_cached_data(cache_key: str, data: pd.DataFrame, ttl: int = 3600):
-    """Set data in cache."""
-    redis_client = get_redis_client()
-    if redis_client:
-        try:
-            redis_client.setex(cache_key, ttl, data.to_json())
-        except Exception as e:
-            logger.warning(f"Cache storage failed: {e}")
 
-@st.cache_data(ttl=3600)  # Cache data for 1 hour
-def load_performance_data(filters: Dict) -> pd.DataFrame:
-    """Load student performance data from the database with advanced querying."""
+# Data loading functions
+def load_performance_data(filters=None):
+    """Load student performance data with filters."""
     try:
-        # Connect to the database
-        database_url = os.getenv('DATABASE_URL')
-        if not database_url:
-            st.error("DATABASE_URL environment variable not set")
-            return pd.DataFrame()
-        
-        engine = create_engine(database_url)
-        
-        # Build dynamic query based on filters
         query = """
-        WITH performance_data AS (
-            SELECT 
-                -- Student information
-                s.student_id,
-                s.full_name AS student_name,
+        WITH student_performance AS (
+            SELECT
+                s.id as student_id,
+                s.student_id as student_code,
+                s.first_name || ' ' || s.last_name as student_name,
                 s.gender,
-                s.age_group,
-                s.socioeconomic_status,
-                s.has_disability,
-                s.division,
-                s.district,
-                s.upazila,
-                
+                s.current_class,
+                s.status,
+                EXTRACT(YEAR FROM AGE(s.date_of_birth)) as age,
+
                 -- School information
-                sch.school_name,
-                sch.school_type,
-                sch.education_level,
-                sch.is_rural,
-                
-                -- Assessment information
-                ar.academic_year,
-                ar.term,
-                ar.subject_id,
-                sub.subject_name,
-                ar.assessment_type,
-                ar.assessment_category,
-                ar.assessment_date,
+                sch.name as school_name,
+                sch.type as school_type,
+                sch.category as school_category,
+
+                -- Geographic information
+                d.name as division,
+                dist.name as district,
+                u.name as upazila,
+
+                -- Enrollment information
+                e.academic_year,
+                e.section,
+                e.roll_number,
+                e.final_percentage,
+                e.final_grade,
+                e.final_result,
+
+                -- Assessment results
                 ar.marks_obtained,
-                ar.max_marks,
-                ar.percentage,
-                ar.grade_letter,
-                ar.is_passed,
-                ar.performance_category,
-                ar.standardized_grade,
-                
-                -- Teacher information
-                t.full_name AS teacher_name,
-                t.subject_specialization,
-                t.years_of_experience
-                
-            FROM facts.fct_assessment_results ar
-            JOIN dimensions.dim_students s ON ar.student_id = s.student_id
-            JOIN dimensions.dim_schools sch ON ar.school_id = sch.school_id
-            LEFT JOIN dimensions.dim_teachers t ON ar.teacher_id = t.teacher_id
-            LEFT JOIN (
-                SELECT DISTINCT subject_id, subject_name 
-                FROM facts.fct_assessment_results 
-                WHERE subject_name IS NOT NULL
-            ) sub ON ar.subject_id = sub.subject_id
-            WHERE s.is_current = TRUE
-            AND sch.is_current = TRUE
+                ar.total_marks,
+                ar.percentage as assessment_percentage,
+                ar.letter_grade,
+                ar.is_pass,
+                ar.rank_in_class,
+                ar.rank_in_school,
+
+                -- Subject information
+                sub.name as subject_name,
+                sub.category as subject_category,
+
+                -- Assessment information
+                a.name as assessment_name,
+                a.type as assessment_type,
+                a.term,
+                a.scheduled_date as assessment_date
+
+            FROM students s
+            LEFT JOIN enrollments e ON s.id = e.student_id AND e.is_active = true
+            LEFT JOIN schools sch ON e.school_id = sch.id
+            LEFT JOIN divisions d ON s.division_id = d.id
+            LEFT JOIN districts dist ON s.district_id = dist.id
+            LEFT JOIN upazilas u ON s.upazila_id = u.id
+            LEFT JOIN assessment_results ar ON s.id = ar.student_id
+            LEFT JOIN assessments a ON ar.assessment_id = a.id
+            LEFT JOIN subjects sub ON ar.subject_id = sub.id
+            WHERE s.is_deleted = false
+            AND (e.is_deleted = false OR e.id IS NULL)
+            AND (sch.is_deleted = false OR sch.id IS NULL)
+        )
+        SELECT * FROM student_performance
+        WHERE student_id IS NOT NULL
+        ORDER BY assessment_date DESC, student_name
+        LIMIT 10000
         """
-        
-        # Add filter conditions
-        conditions = []
-        params = {}
-        
-        if filters.get('academic_year'):
-            conditions.append("academic_year = :academic_year")
-            params['academic_year'] = filters['academic_year']
-        
-        if filters.get('term'):
-            conditions.append("term = :term")
-            params['term'] = filters['term']
-        
-        if filters.get('division'):
-            conditions.append("division = :division")
-            params['division'] = filters['division']
-        
-        if filters.get('district'):
-            conditions.append("district = :district")
-            params['district'] = filters['district']
-        
-        if filters.get('upazila'):
-            conditions.append("upazila = :upazila")
-            params['upazila'] = filters['upazila']
-        
-        if filters.get('school_name'):
-            conditions.append("school_name ILIKE :school_name")
-            params['school_name'] = f"%{filters['school_name']}%"
-        
-        if filters.get('subject_name'):
-            conditions.append("subject_name ILIKE :subject_name")
-            params['subject_name'] = f"%{filters['subject_name']}%"
-        
-        if filters.get('gender'):
-            conditions.append("gender = :gender")
-            params['gender'] = filters['gender']
-        
-        if filters.get('age_group'):
-            conditions.append("age_group = :age_group")
-            params['age_group'] = filters['age_group']
-        
-        if filters.get('socioeconomic_status'):
-            conditions.append("socioeconomic_status = :socioeconomic_status")
-            params['socioeconomic_status'] = filters['socioeconomic_status']
-        
-        if filters.get('has_disability') is not None:
-            conditions.append("has_disability = :has_disability")
-            params['has_disability'] = filters['has_disability']
-        
-        if filters.get('assessment_type'):
-            conditions.append("assessment_type = :assessment_type")
-            params['assessment_type'] = filters['assessment_type']
-        
-        if conditions:
-            query += " AND " + " AND ".join(conditions)
-        
-        query += " ORDER BY assessment_date DESC, student_name"
-        
-        # Execute query
-        with engine.connect() as conn:
-            df = pd.read_sql(text(query), conn, params=params)
-        
-        # Validate data using Pydantic
-        validated_records = []
-        for _, row in df.iterrows():
-            try:
-                validated_record = StudentPerformanceData(**row.to_dict())
-                validated_records.append(validated_record.dict())
-            except Exception as e:
-                logger.warning(f"Data validation failed for record {row.get('student_id')}: {e}")
-                continue
-        
-        if validated_records:
-            return pd.DataFrame(validated_records)
-        else:
-            return pd.DataFrame()
-            
-    except SQLAlchemyError as e:
-        st.error(f"Database error: {str(e)}")
-        logger.error(f"Database error: {e}")
-        return pd.DataFrame()
+
+        df = pd.read_sql(query, engine)
+
+        # Apply filters if provided
+        if filters:
+            if filters.get("division") and filters["division"] != "all":
+                df = df[df["division"] == filters["division"]]
+            if filters.get("grade") and filters["grade"] != "all":
+                df = df[df["current_class"] == f"Class {filters['grade']}"]
+            if filters.get("academic_year"):
+                df = df[df["academic_year"] == filters["academic_year"]]
+            if filters.get("school_type") and filters["school_type"] != "all":
+                df = df[df["school_type"] == filters["school_type"]]
+
+        return df
+
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        logger.error(f"Data loading error: {e}")
+        logger.error(f"Error loading performance data: {e}")
         return pd.DataFrame()
 
-def setup_sidebar() -> DashboardFilters:
-    """Set up the sidebar with comprehensive filters."""
-    st.sidebar.title("📊 Dashboard Filters")
-    
-    # Load filter options from database
+
+def get_key_metrics(filters=None):
+    """Get key performance metrics."""
     try:
-        engine = create_engine(os.getenv('DATABASE_URL'))
-        with engine.connect() as conn:
-            # Get academic years
-            years_df = pd.read_sql("SELECT DISTINCT academic_year FROM facts.fct_assessment_results ORDER BY academic_year DESC", conn)
-            year_options = ["All"] + years_df['academic_year'].tolist()
-            
-            # Get terms
-            terms_df = pd.read_sql("SELECT DISTINCT term FROM facts.fct_assessment_results ORDER BY term", conn)
-            term_options = ["All"] + terms_df['term'].tolist()
-            
-            # Get divisions
-            divisions_df = pd.read_sql("SELECT DISTINCT division FROM dimensions.dim_students WHERE is_current = TRUE ORDER BY division", conn)
-            division_options = ["All"] + divisions_df['division'].tolist()
-            
-            # Get subjects
-            subjects_df = pd.read_sql("SELECT DISTINCT subject_name FROM facts.fct_assessment_results WHERE subject_name IS NOT NULL ORDER BY subject_name", conn)
-            subject_options = ["All"] + subjects_df['subject_name'].tolist()
-            
+        df = load_performance_data(filters)
+
+        if df.empty:
+            return {"total_students": 0, "avg_performance": 0, "pass_rate": 0, "total_schools": 0, "total_assessments": 0}
+
+        # Calculate metrics
+        total_students = df["student_id"].nunique()
+        avg_performance = df["assessment_percentage"].mean() if "assessment_percentage" in df.columns else 0
+        pass_rate = (df["is_pass"].sum() / len(df) * 100) if "is_pass" in df.columns else 0
+        total_schools = df["school_name"].nunique() if "school_name" in df.columns else 0
+        total_assessments = df["assessment_name"].nunique() if "assessment_name" in df.columns else 0
+
+        return {
+            "total_students": total_students,
+            "avg_performance": round(avg_performance, 1),
+            "pass_rate": round(pass_rate, 1),
+            "total_schools": total_schools,
+            "total_assessments": total_assessments,
+        }
+
     except Exception as e:
-        st.sidebar.error(f"Error loading filter options: {e}")
-        year_options = term_options = division_options = subject_options = ["All"]
-    
-    # Academic filters
-    st.sidebar.subheader("📚 Academic Filters")
-    selected_year = st.sidebar.selectbox("Academic Year", year_options, index=0)
-    selected_term = st.sidebar.selectbox("Term", term_options, index=0)
-    selected_subject = st.sidebar.selectbox("Subject", subject_options, index=0)
-    selected_assessment_type = st.sidebar.selectbox(
-        "Assessment Type", 
-        ["All", "Midterm", "Final", "Quiz", "Assignment", "Project"], 
-        index=0
-    )
-    
-    # Geographic filters
-    st.sidebar.subheader("🗺️ Geographic Filters")
-    selected_division = st.sidebar.selectbox("Division", division_options, index=0)
-    
-    # Performance filters
-    st.sidebar.subheader("📈 Performance Filters")
-    min_percentage, max_percentage = st.sidebar.slider(
-        "Percentage Range",
-        min_value=0.0,
-        max_value=100.0,
-        value=(0.0, 100.0),
-        step=1.0
-    )
-    
-    # Demographic filters
-    st.sidebar.subheader("👥 Demographic Filters")
-    selected_gender = st.sidebar.selectbox(
-        "Gender", 
-        ["All", "Male", "Female", "Other"], 
-        index=0
-    )
-    
-    selected_age_group = st.sidebar.selectbox(
-        "Age Group",
-        ["All", "5-9", "10-14", "15-19", "20-24"],
-        index=0
-    )
-    
-    selected_socioeconomic = st.sidebar.selectbox(
-        "Socioeconomic Status",
-        ["All", "Low", "Medium", "High"],
-        index=0
-    )
-    
-    has_disability_filter = st.sidebar.selectbox(
-        "Disability Status",
-        ["All", "Yes", "No"],
-        index=0
-    )
-    
-    # Convert filter values
-    filters = {
-        'academic_year': selected_year if selected_year != "All" else None,
-        'term': selected_term if selected_term != "All" else None,
-        'subject_name': selected_subject if selected_subject != "All" else None,
-        'assessment_type': selected_assessment_type if selected_assessment_type != "All" else None,
-        'division': selected_division if selected_division != "All" else None,
-        'gender': selected_gender if selected_gender != "All" else None,
-        'age_group': selected_age_group if selected_age_group != "All" else None,
-        'socioeconomic_status': selected_socioeconomic if selected_socioeconomic != "All" else None,
-        'has_disability': None if has_disability_filter == "All" else (has_disability_filter == "Yes"),
-        'min_percentage': min_percentage,
-        'max_percentage': max_percentage
-    }
-    
-    return DashboardFilters(**filters)
+        logger.error(f"Error calculating metrics: {e}")
+        return {"total_students": 0, "avg_performance": 0, "pass_rate": 0, "total_schools": 0, "total_assessments": 0}
 
-def display_advanced_metrics(df: pd.DataFrame):
-    """Display comprehensive performance metrics."""
-    if df.empty:
-        st.warning("No data available for the selected filters.")
-        return
-    
-    # Calculate metrics
-    total_students = df['student_id'].nunique()
-    total_assessments = len(df)
-    avg_percentage = df['percentage'].mean()
-    pass_rate = (df['is_passed'].sum() / len(df)) * 100
-    
-    # Performance distribution
-    excellent_count = len(df[df['percentage'] >= 80])
-    good_count = len(df[(df['percentage'] >= 60) & (df['percentage'] < 80)])
-    average_count = len(df[(df['percentage'] >= 40) & (df['percentage'] < 60)])
-    poor_count = len(df[df['percentage'] < 40])
-    
-    # Display metrics in columns
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "Total Students", 
-            f"{total_students:,}",
-            help="Number of unique students in the dataset"
-        )
-    
-    with col2:
-        st.metric(
-            "Total Assessments", 
-            f"{total_assessments:,}",
-            help="Total number of assessments"
-        )
-    
-    with col3:
-        st.metric(
-            "Average Performance", 
-            f"{avg_percentage:.1f}%",
-            delta=f"{avg_percentage - 50:.1f}% vs 50% baseline",
-            delta_color="normal" if avg_percentage >= 50 else "inverse",
-            help="Average percentage across all assessments"
-        )
-    
-    with col4:
-        st.metric(
-            "Pass Rate", 
-            f"{pass_rate:.1f}%",
-            delta=f"{pass_rate - 75:.1f}% vs 75% target",
-            delta_color="normal" if pass_rate >= 75 else "inverse",
-            help="Percentage of students who passed their assessments"
-        )
-    
-    # Performance distribution
-    st.subheader("📊 Performance Distribution")
-    perf_col1, perf_col2, perf_col3, perf_col4 = st.columns(4)
-    
-    with perf_col1:
-        st.metric("Excellent (80%+)", f"{excellent_count:,}", f"{(excellent_count/total_assessments)*100:.1f}%")
-    with perf_col2:
-        st.metric("Good (60-79%)", f"{good_count:,}", f"{(good_count/total_assessments)*100:.1f}%")
-    with perf_col3:
-        st.metric("Average (40-59%)", f"{average_count:,}", f"{(average_count/total_assessments)*100:.1f}%")
-    with perf_col4:
-        st.metric("Poor (<40%)", f"{poor_count:,}", f"{(poor_count/total_assessments)*100:.1f}%")
 
-def create_performance_heatmap(df: pd.DataFrame):
-    """Create performance heatmap by region and subject."""
-    if df.empty:
-        return None
-    
-    # Aggregate data for heatmap
-    heatmap_data = df.groupby(['division', 'subject_name'])['percentage'].mean().reset_index()
-    heatmap_pivot = heatmap_data.pivot(index='division', columns='subject_name', values='percentage')
-    
-    fig = px.imshow(
-        heatmap_pivot,
-        title="Performance Heatmap by Region and Subject",
-        labels=dict(x="Subject", y="Division", color="Average Percentage"),
-        color_continuous_scale="RdYlGn",
-        aspect="auto"
-    )
-    
-    fig.update_layout(
-        xaxis_title="Subject",
-        yaxis_title="Division",
-        height=500
-    )
-    
-    return fig
-
-def create_time_series_analysis(df: pd.DataFrame):
-    """Create time series analysis of performance trends."""
-    if df.empty:
-        return None
-    
-    # Convert assessment_date to datetime if needed
-    df['assessment_date'] = pd.to_datetime(df['assessment_date'])
-    
-    # Aggregate by month
-    monthly_performance = df.groupby(df['assessment_date'].dt.to_period('M')).agg({
-        'percentage': ['mean', 'std', 'count'],
-        'is_passed': 'sum'
-    }).reset_index()
-    
-    monthly_performance.columns = ['month', 'avg_percentage', 'std_percentage', 'assessment_count', 'pass_count']
-    monthly_performance['month'] = monthly_performance['month'].astype(str)
-    monthly_performance['pass_rate'] = (monthly_performance['pass_count'] / monthly_performance['assessment_count']) * 100
-    
-    # Create subplot
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=('Average Performance Over Time', 'Pass Rate Over Time'),
-        vertical_spacing=0.1
-    )
-    
-    # Performance trend
-    fig.add_trace(
-        go.Scatter(
-            x=monthly_performance['month'],
-            y=monthly_performance['avg_percentage'],
-            mode='lines+markers',
-            name='Average Performance',
-            line=dict(color='blue', width=2)
-        ),
-        row=1, col=1
-    )
-    
-    # Pass rate trend
-    fig.add_trace(
-        go.Scatter(
-            x=monthly_performance['month'],
-            y=monthly_performance['pass_rate'],
-            mode='lines+markers',
-            name='Pass Rate',
-            line=dict(color='green', width=2)
-        ),
-        row=2, col=1
-    )
-    
-    fig.update_layout(
-        height=600,
-        title_text="Performance Trends Over Time",
-        showlegend=True
-    )
-    
-    return fig
-
-def create_comparative_analysis(df: pd.DataFrame):
-    """Create comparative analysis dashboards."""
-    if df.empty:
-        return None
-    
-    # Create subplots for different comparisons
-    fig = make_subplots(
-        rows=2, cols=2,
-        subplot_titles=(
-            'Performance by Gender',
-            'Performance by Age Group',
-            'Performance by School Type',
-            'Performance by Socioeconomic Status'
-        ),
-        specs=[[{"type": "box"}, {"type": "box"}],
-               [{"type": "box"}, {"type": "box"}]]
-    )
-    
-    # Gender comparison
-    if 'gender' in df.columns:
-        for gender in df['gender'].unique():
-            gender_data = df[df['gender'] == gender]['percentage']
-            fig.add_trace(
-                go.Box(y=gender_data, name=gender, boxpoints='outliers'),
-                row=1, col=1
+# Layout components
+def create_header():
+    """Create dashboard header."""
+    return dbc.Container(
+        [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            html.H1("🎓 Student Performance Dashboard", className="text-primary mb-0"),
+                            html.P(
+                                "Real-time analytics and insights into student academic performance",
+                                className="text-muted mb-3",
+                            ),
+                            html.Hr(),
+                        ]
+                    )
+                ]
             )
-    
-    # Age group comparison
-    if 'age_group' in df.columns:
-        for age_group in df['age_group'].unique():
-            age_data = df[df['age_group'] == age_group]['percentage']
-            fig.add_trace(
-                go.Box(y=age_data, name=age_group, boxpoints='outliers'),
-                row=1, col=2
-            )
-    
-    # School type comparison (if available)
-    if 'school_type' in df.columns:
-        for school_type in df['school_type'].unique():
-            school_data = df[df['school_type'] == school_type]['percentage']
-            fig.add_trace(
-                go.Box(y=school_data, name=school_type, boxpoints='outliers'),
-                row=2, col=1
-            )
-    
-    # Socioeconomic status comparison
-    if 'socioeconomic_status' in df.columns:
-        for status in df['socioeconomic_status'].unique():
-            if pd.notna(status):
-                status_data = df[df['socioeconomic_status'] == status]['percentage']
-                fig.add_trace(
-                    go.Box(y=status_data, name=status, boxpoints='outliers'),
-                    row=2, col=2
-                )
-    
-    fig.update_layout(
-        height=800,
-        title_text="Comparative Performance Analysis",
-        showlegend=False
+        ],
+        fluid=True,
+        className="bg-light py-3 mb-4",
     )
-    
-    return fig
 
-def display_advanced_visualizations(df: pd.DataFrame):
-    """Display advanced data visualizations."""
-    if df.empty:
-        st.warning("No data available for visualizations.")
-        return
-    
-    # Create tabs for different visualizations
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Performance Distribution", 
-        "🗺️ Regional Heatmap", 
-        "📈 Trend Analysis",
-        "🔍 Comparative Analysis"
-    ])
-    
-    with tab1:
-        # Performance distribution
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Histogram
-            fig_hist = px.histogram(
-                df, 
-                x='percentage', 
-                nbins=20,
-                title='Performance Distribution',
-                labels={'percentage': 'Percentage Score'},
-                color_discrete_sequence=['#1f77b4']
-            )
-            fig_hist.update_layout(showlegend=False)
-            st.plotly_chart(fig_hist, use_container_width=True)
-        
-        with col2:
-            # Box plot by subject
-            if 'subject_name' in df.columns:
-                fig_box = px.box(
-                    df, 
-                    x='subject_name', 
-                    y='percentage',
-                    title='Performance by Subject',
-                    labels={'subject_name': 'Subject', 'percentage': 'Percentage Score'}
-                )
-                fig_box.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_box, use_container_width=True)
-    
-    with tab2:
-        # Regional heatmap
-        heatmap_fig = create_performance_heatmap(df)
-        if heatmap_fig:
-            st.plotly_chart(heatmap_fig, use_container_width=True)
-        else:
-            st.info("Insufficient data for heatmap visualization.")
-    
-    with tab3:
-        # Time series analysis
-        time_series_fig = create_time_series_analysis(df)
-        if time_series_fig:
-            st.plotly_chart(time_series_fig, use_container_width=True)
-        else:
-            st.info("Insufficient data for time series analysis.")
-    
-    with tab4:
-        # Comparative analysis
-        comparative_fig = create_comparative_analysis(df)
-        if comparative_fig:
-            st.plotly_chart(comparative_fig, use_container_width=True)
-        else:
-            st.info("Insufficient data for comparative analysis.")
 
-def export_data(df: pd.DataFrame, format_type: str = "csv"):
-    """Export data in various formats."""
-    if df.empty:
-        st.warning("No data to export.")
-        return
-    
-    if format_type == "csv":
-        csv_data = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=f"student_performance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-    elif format_type == "excel":
-        # Note: This would require openpyxl package
-        st.info("Excel export requires additional dependencies. Please install openpyxl.")
-
-def display_data_table(df: pd.DataFrame):
-    """Display the filtered data in an interactive table."""
-    if df.empty:
-        st.info("No data available for the selected filters.")
-        return
-    
-    st.subheader("📋 Detailed Performance Data")
-    
-    # Add export functionality
-    col1, col2 = st.columns([3, 1])
-    with col2:
-        export_format = st.selectbox("Export Format", ["CSV", "Excel"])
-        if st.button("📥 Export Data"):
-            export_data(df, export_format.lower())
-    
-    # Display interactive table
-    st.dataframe(
-        df.sort_values(['percentage', 'student_name'], ascending=[False, True]),
-        column_config={
-            'student_id': 'Student ID',
-            'student_name': 'Name',
-            'school_name': 'School',
-            'division': 'Division',
-            'district': 'District',
-            'upazila': 'Upazila',
-            'gender': 'Gender',
-            'age_group': 'Age Group',
-            'socioeconomic_status': 'SES',
-            'has_disability': 'Disability',
-            'academic_year': 'Year',
-            'term': 'Term',
-            'subject_name': 'Subject',
-            'assessment_type': 'Type',
-            'percentage': st.column_config.NumberColumn(
-                'Percentage',
-                format="%.1f%%",
-                help="Student's percentage score"
+def create_filters():
+    """Create filter controls."""
+    return dbc.Card(
+        [
+            dbc.CardHeader([html.H5("📊 Filters & Controls", className="mb-0")]),
+            dbc.CardBody(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.Label("Division:", className="fw-bold"),
+                                    dcc.Dropdown(
+                                        id="division-filter",
+                                        options=[
+                                            {"label": "All Divisions", "value": "all"},
+                                            {"label": "Dhaka", "value": "Dhaka"},
+                                            {"label": "Chittagong", "value": "Chittagong"},
+                                            {"label": "Rajshahi", "value": "Rajshahi"},
+                                            {"label": "Khulna", "value": "Khulna"},
+                                            {"label": "Barisal", "value": "Barisal"},
+                                            {"label": "Sylhet", "value": "Sylhet"},
+                                            {"label": "Rangpur", "value": "Rangpur"},
+                                            {"label": "Mymensingh", "value": "Mymensingh"},
+                                        ],
+                                        value="all",
+                                        className="mb-3",
+                                    ),
+                                ],
+                                md=3,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Grade:", className="fw-bold"),
+                                    dcc.Dropdown(
+                                        id="grade-filter",
+                                        options=[
+                                            {"label": "All Grades", "value": "all"},
+                                            {"label": "Grade 1", "value": "1"},
+                                            {"label": "Grade 2", "value": "2"},
+                                            {"label": "Grade 3", "value": "3"},
+                                            {"label": "Grade 4", "value": "4"},
+                                            {"label": "Grade 5", "value": "5"},
+                                            {"label": "Grade 6", "value": "6"},
+                                            {"label": "Grade 7", "value": "7"},
+                                            {"label": "Grade 8", "value": "8"},
+                                            {"label": "Grade 9", "value": "9"},
+                                            {"label": "Grade 10", "value": "10"},
+                                        ],
+                                        value="all",
+                                        className="mb-3",
+                                    ),
+                                ],
+                                md=3,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("Academic Year:", className="fw-bold"),
+                                    dcc.Dropdown(
+                                        id="year-filter",
+                                        options=[
+                                            {"label": "2024-2025", "value": "2024-2025"},
+                                            {"label": "2023-2024", "value": "2023-2024"},
+                                            {"label": "2022-2023", "value": "2022-2023"},
+                                        ],
+                                        value="2024-2025",
+                                        className="mb-3",
+                                    ),
+                                ],
+                                md=3,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.Label("School Type:", className="fw-bold"),
+                                    dcc.Dropdown(
+                                        id="school-type-filter",
+                                        options=[
+                                            {"label": "All Types", "value": "all"},
+                                            {"label": "Government", "value": "government"},
+                                            {"label": "Private", "value": "private"},
+                                            {"label": "Non-Government", "value": "non_government"},
+                                        ],
+                                        value="all",
+                                        className="mb-3",
+                                    ),
+                                ],
+                                md=3,
+                            ),
+                        ]
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    dbc.Button(
+                                        "🔄 Refresh Data", id="refresh-btn", color="primary", size="sm", className="me-2"
+                                    ),
+                                    dbc.Button(
+                                        "📊 Export Data", id="export-btn", color="success", size="sm", className="me-2"
+                                    ),
+                                    dbc.Switch(
+                                        id="auto-refresh-switch",
+                                        label="Auto Refresh (30s)",
+                                        value=False,
+                                        className="d-inline-block",
+                                    ),
+                                ]
+                            )
+                        ]
+                    ),
+                ]
             ),
-            'grade_letter': 'Grade',
-            'is_passed': 'Passed',
-            'assessment_date': 'Date'
-        },
-        hide_index=True,
-        use_container_width=True,
-        height=400
+        ],
+        className="mb-4",
     )
 
-def main():
-    """Main function to run the enhanced dashboard."""
-    st.title("📊 Student Performance Dashboard")
-    st.markdown("Comprehensive analytics for Bangladesh education system performance tracking")
-    
-    # Load data with caching
-    filters = setup_sidebar()
-    
-    # Generate cache key
-    cache_key = get_cache_key("performance_data", filters.dict())
-    
-    # Try to get cached data first
-    df = get_cached_data(cache_key)
-    
-    if df is None:
-        # Load fresh data
-        with st.spinner("Loading performance data..."):
-            df = load_performance_data(filters.dict())
-        
-        # Cache the data
-        if not df.empty:
-            set_cached_data(cache_key, df)
-    
-    if df.empty:
-        st.warning("No data available for the selected filters. Please adjust your filter criteria.")
-        return
-    
-    # Apply percentage range filter
-    df = df[(df['percentage'] >= filters.min_percentage) & (df['percentage'] <= filters.max_percentage)]
-    
-    # Display metrics
-    display_advanced_metrics(df)
-    
-    # Display visualizations
-    display_advanced_visualizations(df)
-    
-    # Display data table
-    display_data_table(df)
-    
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "**Data Source**: Bangladesh Education Data Warehouse | "
-        "**Last Updated**: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def create_metrics_cards():
+    """Create key metrics cards."""
+    return dbc.Row(
+        [
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("👥", className="text-primary mb-2"),
+                                    html.H3(id="total-students-metric", children="0", className="mb-1"),
+                                    html.P("Total Students", className="text-muted mb-0"),
+                                    html.Small(id="students-change", className="text-success"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-primary border-4",
+                    )
+                ],
+                md=2,
+            ),
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("📈", className="text-success mb-2"),
+                                    html.H3(id="avg-performance-metric", children="0%", className="mb-1"),
+                                    html.P("Average Performance", className="text-muted mb-0"),
+                                    html.Small(id="performance-change", className="text-success"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-success border-4",
+                    )
+                ],
+                md=2,
+            ),
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("✅", className="text-info mb-2"),
+                                    html.H3(id="pass-rate-metric", children="0%", className="mb-1"),
+                                    html.P("Pass Rate", className="text-muted mb-0"),
+                                    html.Small(id="pass-rate-change", className="text-info"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-info border-4",
+                    )
+                ],
+                md=2,
+            ),
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("🏫", className="text-warning mb-2"),
+                                    html.H3(id="total-schools-metric", children="0", className="mb-1"),
+                                    html.P("Schools", className="text-muted mb-0"),
+                                    html.Small(id="schools-change", className="text-warning"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-warning border-4",
+                    )
+                ],
+                md=2,
+            ),
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("📝", className="text-danger mb-2"),
+                                    html.H3(id="total-assessments-metric", children="0", className="mb-1"),
+                                    html.P("Assessments", className="text-muted mb-0"),
+                                    html.Small(id="assessments-change", className="text-danger"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-danger border-4",
+                    )
+                ],
+                md=2,
+            ),
+            dbc.Col(
+                [
+                    dbc.Card(
+                        [
+                            dbc.CardBody(
+                                [
+                                    html.H4("⏰", className="text-secondary mb-2"),
+                                    html.H3(id="last-updated", children="--:--", className="mb-1"),
+                                    html.P("Last Updated", className="text-muted mb-0"),
+                                    dbc.Spinner(size="sm", color="primary", id="loading-spinner"),
+                                ]
+                            )
+                        ],
+                        className="h-100 border-start border-secondary border-4",
+                    )
+                ],
+                md=2,
+            ),
+        ],
+        className="mb-4",
     )
+
+
+def create_charts_section():
+    """Create charts section."""
+    return dbc.Container(
+        [
+            # Performance Trends
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("📈 Performance Trends Over Time", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="performance-trends-chart", style={"height": "400px"})]),
+                                ]
+                            )
+                        ],
+                        md=8,
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("🎯 Grade Distribution", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="grade-distribution-chart", style={"height": "400px"})]),
+                                ]
+                            )
+                        ],
+                        md=4,
+                    ),
+                ],
+                className="mb-4",
+            ),
+            # Regional and Subject Performance
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("🌍 Performance by Division", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="regional-performance-chart", style={"height": "400px"})]),
+                                ]
+                            )
+                        ],
+                        md=6,
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("📚 Subject-wise Performance", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="subject-performance-chart", style={"height": "400px"})]),
+                                ]
+                            )
+                        ],
+                        md=6,
+                    ),
+                ],
+                className="mb-4",
+            ),
+            # Gender and School Type Analysis
+            dbc.Row(
+                [
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("👫 Gender Performance Gap", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="gender-performance-chart", style={"height": "350px"})]),
+                                ]
+                            )
+                        ],
+                        md=6,
+                    ),
+                    dbc.Col(
+                        [
+                            dbc.Card(
+                                [
+                                    dbc.CardHeader([html.H5("🏫 School Type Comparison", className="mb-0")]),
+                                    dbc.CardBody([dcc.Graph(id="school-type-chart", style={"height": "350px"})]),
+                                ]
+                            )
+                        ],
+                        md=6,
+                    ),
+                ],
+                className="mb-4",
+            ),
+        ],
+        fluid=True,
+    )
+
+
+def create_data_table():
+    """Create detailed data table."""
+    return dbc.Card(
+        [
+            dbc.CardHeader([html.H5("📋 Detailed Performance Data", className="mb-0")]),
+            dbc.CardBody(
+                [
+                    dash_table.DataTable(
+                        id="performance-table",
+                        columns=[
+                            {"name": "Student", "id": "student_name", "type": "text"},
+                            {"name": "School", "id": "school_name", "type": "text"},
+                            {"name": "Grade", "id": "current_class", "type": "text"},
+                            {"name": "Division", "id": "division", "type": "text"},
+                            {"name": "Subject", "id": "subject_name", "type": "text"},
+                            {"name": "Assessment", "id": "assessment_name", "type": "text"},
+                            {"name": "Marks", "id": "marks_obtained", "type": "numeric", "format": {"specifier": ".1f"}},
+                            {"name": "Total", "id": "total_marks", "type": "numeric"},
+                            {
+                                "name": "Percentage",
+                                "id": "assessment_percentage",
+                                "type": "numeric",
+                                "format": {"specifier": ".1f"},
+                            },
+                            {"name": "Grade", "id": "letter_grade", "type": "text"},
+                            {"name": "Status", "id": "is_pass", "type": "text"},
+                        ],
+                        data=[],
+                        page_size=20,
+                        sort_action="native",
+                        filter_action="native",
+                        style_cell={"textAlign": "left", "padding": "10px"},
+                        style_header={"backgroundColor": "rgb(230, 230, 230)", "fontWeight": "bold"},
+                        style_data_conditional=[
+                            {
+                                "if": {"filter_query": "{is_pass} = True"},
+                                "backgroundColor": "#d4edda",
+                                "color": "black",
+                            },
+                            {
+                                "if": {"filter_query": "{is_pass} = False"},
+                                "backgroundColor": "#f8d7da",
+                                "color": "black",
+                            },
+                        ],
+                    )
+                ]
+            ),
+        ],
+        className="mb-4",
+    )
+
+
+# Main layout
+app.layout = dbc.Container(
+    [
+        create_header(),
+        create_filters(),
+        create_metrics_cards(),
+        create_charts_section(),
+        create_data_table(),
+        # Auto-refresh interval
+        dcc.Interval(id="interval-component", interval=30 * 1000, n_intervals=0, disabled=True),  # 30 seconds
+        # Store for data
+        dcc.Store(id="performance-data-store"),
+        dcc.Store(id="filters-store"),
+    ],
+    fluid=True,
+)
+
+
+# Callbacks
+@app.callback(
+    [Output("performance-data-store", "data"), Output("last-updated", "children")],
+    [
+        Input("interval-component", "n_intervals"),
+        Input("refresh-btn", "n_clicks"),
+        Input("division-filter", "value"),
+        Input("grade-filter", "value"),
+        Input("year-filter", "value"),
+        Input("school-type-filter", "value"),
+    ],
+)
+def update_data_store(n_intervals, refresh_clicks, division, grade, year, school_type):
+    """Update the data store with fresh data."""
+    filters = {"division": division, "grade": grade, "academic_year": year, "school_type": school_type}
+
+    df = load_performance_data(filters)
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    return df.to_dict("records"), current_time
+
+
+@app.callback(Output("interval-component", "disabled"), Input("auto-refresh-switch", "value"))
+def toggle_auto_refresh(auto_refresh):
+    """Toggle auto-refresh based on switch."""
+    return not auto_refresh
+
+
+@app.callback(
+    [
+        Output("total-students-metric", "children"),
+        Output("avg-performance-metric", "children"),
+        Output("pass-rate-metric", "children"),
+        Output("total-schools-metric", "children"),
+        Output("total-assessments-metric", "children"),
+    ],
+    Input("performance-data-store", "data"),
+)
+def update_metrics(data):
+    """Update key metrics cards."""
+    if not data:
+        return "0", "0%", "0%", "0", "0"
+
+    df = pd.DataFrame(data)
+
+    total_students = df["student_id"].nunique() if "student_id" in df.columns else 0
+    avg_performance = df["assessment_percentage"].mean() if "assessment_percentage" in df.columns else 0
+    pass_rate = (df["is_pass"].sum() / len(df) * 100) if "is_pass" in df.columns and len(df) > 0 else 0
+    total_schools = df["school_name"].nunique() if "school_name" in df.columns else 0
+    total_assessments = df["assessment_name"].nunique() if "assessment_name" in df.columns else 0
+
+    return (
+        f"{total_students:,}",
+        f"{avg_performance:.1f}%",
+        f"{pass_rate:.1f}%",
+        f"{total_schools:,}",
+        f"{total_assessments:,}",
+    )
+
+
+@app.callback(Output("performance-trends-chart", "figure"), Input("performance-data-store", "data"))
+def update_performance_trends(data):
+    """Update performance trends chart."""
+    if not data:
+        return px.line(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "assessment_date" not in df.columns or df.empty:
+        return px.line(title="No assessment data available")
+
+    # Convert assessment_date to datetime
+    df["assessment_date"] = pd.to_datetime(df["assessment_date"])
+
+    # Group by month and calculate average performance
+    monthly_performance = (
+        df.groupby(df["assessment_date"].dt.to_period("M"))
+        .agg({"assessment_percentage": "mean", "student_id": "nunique"})
+        .reset_index()
+    )
+
+    monthly_performance["month"] = monthly_performance["assessment_date"].astype(str)
+
+    fig = px.line(
+        monthly_performance,
+        x="month",
+        y="assessment_percentage",
+        title="Average Performance Trends Over Time",
+        labels={"assessment_percentage": "Average Percentage", "month": "Month"},
+        markers=True,
+    )
+
+    fig.update_layout(xaxis_title="Month", yaxis_title="Average Performance (%)", hovermode="x unified")
+
+    return fig
+
+
+@app.callback(Output("grade-distribution-chart", "figure"), Input("performance-data-store", "data"))
+def update_grade_distribution(data):
+    """Update grade distribution chart."""
+    if not data:
+        return px.pie(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "letter_grade" not in df.columns or df.empty:
+        return px.pie(title="No grade data available")
+
+    grade_counts = df["letter_grade"].value_counts().reset_index()
+    grade_counts.columns = ["Grade", "Count"]
+
+    fig = px.pie(
+        grade_counts,
+        values="Count",
+        names="Grade",
+        title="Grade Distribution",
+        color_discrete_sequence=px.colors.qualitative.Set3,
+    )
+
+    return fig
+
+
+@app.callback(Output("regional-performance-chart", "figure"), Input("performance-data-store", "data"))
+def update_regional_performance(data):
+    """Update regional performance chart."""
+    if not data:
+        return px.bar(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "division" not in df.columns or df.empty:
+        return px.bar(title="No regional data available")
+
+    regional_performance = df.groupby("division").agg({"assessment_percentage": "mean", "student_id": "nunique"}).reset_index()
+
+    fig = px.bar(
+        regional_performance,
+        x="division",
+        y="assessment_percentage",
+        title="Average Performance by Division",
+        labels={"assessment_percentage": "Average Performance (%)", "division": "Division"},
+        color="assessment_percentage",
+        color_continuous_scale="Viridis",
+    )
+
+    fig.update_layout(xaxis_title="Division", yaxis_title="Average Performance (%)")
+
+    return fig
+
+
+@app.callback(Output("subject-performance-chart", "figure"), Input("performance-data-store", "data"))
+def update_subject_performance(data):
+    """Update subject performance chart."""
+    if not data:
+        return px.bar(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "subject_name" not in df.columns or df.empty:
+        return px.bar(title="No subject data available")
+
+    subject_performance = (
+        df.groupby("subject_name").agg({"assessment_percentage": "mean", "student_id": "nunique"}).reset_index()
+    )
+
+    fig = px.bar(
+        subject_performance,
+        x="subject_name",
+        y="assessment_percentage",
+        title="Average Performance by Subject",
+        labels={"assessment_percentage": "Average Performance (%)", "subject_name": "Subject"},
+        color="assessment_percentage",
+        color_continuous_scale="Blues",
+    )
+
+    fig.update_layout(xaxis_title="Subject", yaxis_title="Average Performance (%)", xaxis={"tickangle": 45})
+
+    return fig
+
+
+@app.callback(Output("gender-performance-chart", "figure"), Input("performance-data-store", "data"))
+def update_gender_performance(data):
+    """Update gender performance chart."""
+    if not data:
+        return px.box(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "gender" not in df.columns or df.empty:
+        return px.box(title="No gender data available")
+
+    fig = px.box(
+        df,
+        x="gender",
+        y="assessment_percentage",
+        title="Performance Distribution by Gender",
+        labels={"assessment_percentage": "Performance (%)", "gender": "Gender"},
+        color="gender",
+    )
+
+    return fig
+
+
+@app.callback(Output("school-type-chart", "figure"), Input("performance-data-store", "data"))
+def update_school_type_chart(data):
+    """Update school type performance chart."""
+    if not data:
+        return px.violin(title="No data available")
+
+    df = pd.DataFrame(data)
+
+    if "school_category" not in df.columns or df.empty:
+        return px.violin(title="No school type data available")
+
+    fig = px.violin(
+        df,
+        x="school_category",
+        y="assessment_percentage",
+        title="Performance Distribution by School Type",
+        labels={"assessment_percentage": "Performance (%)", "school_category": "School Type"},
+        color="school_category",
+        box=True,
+    )
+
+    return fig
+
+
+@app.callback(Output("performance-table", "data"), Input("performance-data-store", "data"))
+def update_performance_table(data):
+    """Update performance data table."""
+    if not data:
+        return []
+
+    df = pd.DataFrame(data)
+
+    # Select relevant columns for the table
+    table_columns = [
+        "student_name",
+        "school_name",
+        "current_class",
+        "division",
+        "subject_name",
+        "assessment_name",
+        "marks_obtained",
+        "total_marks",
+        "assessment_percentage",
+        "letter_grade",
+        "is_pass",
+    ]
+
+    # Filter columns that exist in the dataframe
+    available_columns = [col for col in table_columns if col in df.columns]
+
+    if available_columns:
+        table_df = df[available_columns].copy()
+
+        # Format the data
+        if "is_pass" in table_df.columns:
+            table_df["is_pass"] = table_df["is_pass"].map({True: "Pass", False: "Fail"})
+
+        return table_df.to_dict("records")
+
+    return []
+
 
 if __name__ == "__main__":
-    main()
+    app.run_server(debug=True, host="0.0.0.0", port=8050)

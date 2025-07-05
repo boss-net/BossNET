@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: student-analytics-config
+  namespace: bdren-production
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "https://analytics.education.gov.bd"
+  MAX_UPLOAD_SIZE: "10485760"
+  RATE_LIMIT_PER_MINUTE: "100"
+  CACHE_TTL: "3600"
+  DATABASE_POOL_SIZE: "20"
+  DATABASE_MAX_OVERFLOW: "30"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: student-analytics-config
+  namespace: bdren-staging
+data:
+  ENVIRONMENT: "staging"
+  LOG_LEVEL: "DEBUG"
+  CORS_ORIGINS: "https://staging-analytics.education.gov.bd"
+  MAX_UPLOAD_SIZE: "5242880"
+  RATE_LIMIT_PER_MINUTE: "50"
+  CACHE_TTL: "1800"
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "15"

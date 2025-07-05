@@ -1,211 +1,30 @@
-# Bangladesh Student Data Analytics Project
+# BossNETmaster
+
+*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/abashones-projects/v0-boss-net-master)
+[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/0JlBDjGCGSm)
 
 ## Overview
 
-A comprehensive data analysis system for educational data in Bangladesh, integrating various data sources to provide insights into student performance, demographics, and educational trends.
-
-## Project Structure
-
-```
-student-data-bangladesh/
-├── data/                  # Data storage
-│   ├── raw_data/         # Original source data
-│   └── processed_data/   # Cleaned and transformed data
-├── src/                  # Source code
-├── notebooks/            # Jupyter notebooks
-├── tests/               # Test suites
-├── docs/                # Documentation
-└── deploy/              # Deployment configurations
-```
-
-## Features
-
-- Secure JWT-based authentication
-- Role-based access control (Admin, Teacher, Staff, Student)
-- Data collection from multiple educational sources
-- Automated data processing and validation
-- Statistical analysis and modeling
-- Interactive visualizations and dashboards
-- RESTful API with OpenAPI documentation
-- Comprehensive monitoring and reporting
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8+
-- PostgreSQL 12+
-- pip (Python package manager)
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/student-data-bangladesh.git
-   cd student-data-bangladesh
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configurations
-   ```
-
-5. Set up the database:
-   ```bash
-   # Create database in PostgreSQL
-   createdb student_data_db
-   
-   # Run migrations
-   alembic upgrade head
-   
-   # Or initialize database directly
-   python scripts/init_db.py
-   ```
-
-6. Run the development server:
-   ```bash
-   python run_api.py
-   ```
-   The API will be available at http://localhost:8000
-
-### API Documentation
-
-Once the server is running, you can access:
-
-- Interactive API documentation: http://localhost:8000/docs
-- OpenAPI schema: http://localhost:8000/openapi.json
-
-### Authentication
-
-1. Get an access token:
-   ```bash
-   curl -X 'POST' \
-     'http://localhost:8000/api/v1/auth/token' \
-     -H 'accept: application/json' \
-     -H 'Content-Type: application/x-www-form-urlencoded' \
-     -d 'grant_type=password&username=admin&password=admin123'
-   ```
-
-2. Use the access token in subsequent requests:
-   ```
-   Authorization: Bearer <access_token>
-   ```
-
-### Running Tests
-
-```bash
-pytest
-```
-
-## Development
-
-- Follow the [Contributing Guidelines](CONTRIBUTING.md)
-- Check [Documentation](docs/) for detailed information
-- Review [Deployment Guide](docs/deployment.md) for deployment instructions
-
-## Architecture
-
-- Python-based data processing pipeline
-- PostgreSQL for data storage
-- Redis for caching
-- FastAPI for REST API
-- Kubernetes for production deployment
-- Prometheus/Grafana for monitoring
-
-## Data Sources
-
-- BANBEIS (Bangladesh Bureau of Educational Information and Statistics)
-- Education Board Results
-- DSHE (Directorate of Secondary and Higher Education)
-- DPE (Directorate of Primary Education)
-- BBS (Bangladesh Bureau of Statistics)
-
-## Security
-
-- Comprehensive data privacy measures
-- Role-based access control
-- Encrypted sensitive data
-- Regular security audits
+This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
+Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
 
 ## Deployment
 
-### Development (Docker Compose)
+Your project is live at:
 
-1. Build and start the services:
-   ```bash
-   docker-compose up -d --build
-   ```
+**[https://vercel.com/abashones-projects/v0-boss-net-master](https://vercel.com/abashones-projects/v0-boss-net-master)**
 
-2. Run database migrations:
-   ```bash
-   docker-compose exec web alembic upgrade head
-   ```
+## Build your app
 
-3. Access the API at http://localhost:8000
+Continue building your app on:
 
-### Production (Recommended)
+**[https://v0.dev/chat/projects/0JlBDjGCGSm](https://v0.dev/chat/projects/0JlBDjGCGSm)**
 
-For production deployment, it's recommended to use:
+## How It Works
 
-1. A production-grade ASGI server like Uvicorn with Gunicorn
-2. A reverse proxy like Nginx
-3. Process manager like Systemd or Supervisor
-4. Container orchestration with Kubernetes for high availability
-
-See [Deployment Guide](docs/deployment.md) for detailed production deployment instructions.
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Database connection URL | `postgresql://postgres:postgres@db:5432/student_data_db` |
-| `SECRET_KEY` | Secret key for JWT tokens | `your-secret-key-change-in-production` |
-| `ALGORITHM` | JWT signing algorithm | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiration time in minutes | `30` |
-| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) | `*` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-
-## Monitoring
-
-- Real-time performance monitoring
-- Custom educational metrics
-- Automated alerting system
-- Regular performance reports
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Follow coding standards
-4. Submit a pull request
-
-See [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For support and questions:
-- Create an issue in the GitHub repository
-- Contact the development team
-- Check the documentation
-
-## Acknowledgments
-
-- Ministry of Education, Bangladesh
-- Educational institutions
-- Contributing developers and researchers
+1. Create and modify your project using [v0.dev](https://v0.dev)
+2. Deploy your chats from the v0 interface
+3. Changes are automatically pushed to this repository
+4. Vercel deploys the latest version from this repository

@@ -12,36 +12,36 @@ This guide will help you get started with the Bangladesh Student Data Analytics 
 ## Setup Steps
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/student-data-bangladesh.git
-   cd student-data-bangladesh
-   ```
+   \`\`\`bash
+   git clone https://github.com/boss-net/bossnet.git
+   cd bossnet
+   \`\`\`
 
 2. Create and activate a virtual environment:
-   ```bash
+   \`\`\`bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+   \`\`\`
 
 3. Install dependencies:
-   ```bash
+   \`\`\`bash
    # For development
    pip install -e ".[dev]"
 
    # For production
    pip install .
-   ```
+   \`\`\`
 
 4. Set up pre-commit hooks:
-   ```bash
+   \`\`\`bash
    pre-commit install
-   ```
+   \`\`\`
 
 5. Configure environment variables:
-   ```bash
+   \`\`\`bash
    cp .env.example .env
    # Edit .env with your configuration
-   ```
+   \`\`\`
 
 ## Development Workflow
 
@@ -50,28 +50,28 @@ This guide will help you get started with the Bangladesh Student Data Analytics 
 Our project uses several tools to maintain code quality:
 
 - **black**: Code formatting
-  ```bash
+  \`\`\`bash
   black .
-  ```
+  \`\`\`
 
 - **isort**: Import sorting
-  ```bash
+  \`\`\`bash
   isort .
-  ```
+  \`\`\`
 
 - **flake8**: Code linting
-  ```bash
+  \`\`\`bash
   flake8 .
-  ```
+  \`\`\`
 
 - **bandit**: Security checks
-  ```bash
+  \`\`\`bash
   bandit -r src/
-  ```
+  \`\`\`
 
 ### Running Tests
 
-```bash
+\`\`\`bash
 # Run all tests
 pytest
 
@@ -80,26 +80,26 @@ pytest --cov=src --cov-report=term-missing
 
 # Run specific test file
 pytest tests/test_specific.py
-```
+\`\`\`
 
 ### Database Setup
 
 1. Create the database:
-   ```bash
+   \`\`\`bash
    createdb student_analytics_db
-   ```
+   \`\`\`
 
 2. Run migrations:
-   ```bash
+   \`\`\`bash
    python src/data_processing/run_migrations.py
-   ```
+   \`\`\`
 
 ### Running the Application
 
 1. Start the API server:
-   ```bash
+   \`\`\`bash
    uvicorn src.api.main:app --reload
-   ```
+   \`\`\`
 
 2. Access the API documentation:
    - OpenAPI UI: http://localhost:8000/docs
@@ -107,8 +107,8 @@ pytest tests/test_specific.py
 
 ## Project Structure
 
-```
-student-data-bangladesh/
+\`\`\`
+bossnet/
 ├── src/                  # Source code
 │   ├── data_processing/  # Data processing modules
 │   ├── models/          # Analytics models
@@ -118,47 +118,47 @@ student-data-bangladesh/
 ├── docs/               # Documentation
 ├── notebooks/          # Jupyter notebooks
 └── deploy/            # Deployment configurations
-```
+\`\`\`
 
 ## Common Tasks
 
 ### Adding New Features
 
 1. Create a new branch:
-   ```bash
+   \`\`\`bash
    git checkout -b feature/your-feature-name
-   ```
+   \`\`\`
 
 2. Make your changes
 3. Run tests and quality checks:
-   ```bash
+   \`\`\`bash
    pytest
    pre-commit run --all-files
-   ```
+   \`\`\`
 
 4. Commit your changes:
-   ```bash
+   \`\`\`bash
    git add .
    git commit -m "Add: your feature description"
-   ```
+   \`\`\`
 
 ### Processing Data
 
 1. Place raw data in appropriate directory:
-   ```bash
+   \`\`\`bash
    raw_data/[category]/your_data_file.csv
-   ```
+   \`\`\`
 
 2. Run processing script:
-   ```bash
+   \`\`\`bash
    python src/data_processing/process_data.py --source [category]
-   ```
+   \`\`\`
 
 ### Generating Reports
 
-```bash
+\`\`\`bash
 python src/reports/generate_reports.py --type [report_type] --output [path]
-```
+\`\`\`
 
 ## Troubleshooting
 

@@ -19,14 +19,14 @@ This guide explains how to deploy the Bangladesh Student Data Analytics project 
 ### Development Environment
 
 1. Build and start services:
-   ```bash
+   \`\`\`bash
    docker-compose up --build -d
-   ```
+   \`\`\`
 
 2. Run database migrations:
-   ```bash
+   \`\`\`bash
    docker-compose exec app python src/data_processing/run_migrations.py
-   ```
+   \`\`\`
 
 3. Access the application:
    - API: http://localhost:8000
@@ -35,72 +35,72 @@ This guide explains how to deploy the Bangladesh Student Data Analytics project 
 ### Staging Environment
 
 1. Create staging environment file:
-   ```bash
+   \`\`\`bash
    cp deploy/environments/development.env deploy/environments/staging.env
    # Edit staging.env with appropriate values
-   ```
+   \`\`\`
 
 2. Deploy using staging configuration:
-   ```bash
+   \`\`\`bash
    ./deploy/deploy.sh staging v1.0.0
-   ```
+   \`\`\`
 
 ## Kubernetes Deployment
 
 ### Production Environment Setup
 
 1. Create Kubernetes namespace:
-   ```bash
+   \`\`\`bash
    kubectl create namespace bdren
-   ```
+   \`\`\`
 
 2. Create secrets:
-   ```bash
+   \`\`\`bash
    # Update deploy/kubernetes/secrets.yaml with your base64 encoded values
    kubectl apply -f deploy/kubernetes/secrets.yaml
-   ```
+   \`\`\`
 
 3. Deploy infrastructure:
-   ```bash
+   \`\`\`bash
    kubectl apply -f deploy/kubernetes/db-deployment.yaml
    kubectl apply -f deploy/kubernetes/redis-deployment.yaml
-   ```
+   \`\`\`
 
 4. Deploy application:
-   ```bash
+   \`\`\`bash
    kubectl apply -f deploy/kubernetes/app-deployment.yaml
-   ```
+   \`\`\`
 
 5. Configure ingress:
-   ```bash
+   \`\`\`bash
    kubectl apply -f deploy/kubernetes/ingress.yaml
-   ```
+   \`\`\`
 
 ### Scaling
 
 Scale the application horizontally:
-```bash
+\`\`\`bash
 kubectl scale deployment student-analytics -n bdren --replicas=5
-```
+\`\`\`
 
 ### Monitoring
 
 1. Check deployment status:
-   ```bash
+   \`\`\`bash
    kubectl get pods -n bdren
    kubectl get services -n bdren
-   ```
+   \`\`\`
 
 2. View logs:
-   ```bash
+   \`\`\`bash
    kubectl logs -f deployment/student-analytics -n bdren
-   ```
+   \`\`\`
 
 ## Environment Variables
 
 Key environment variables that need to be configured:
 
-```bash
+\`\`\`bash
 # Application
 ENVIRONMENT=production
 DEBUG=false
@@ -118,24 +118,24 @@ REDIS_PORT=6379
 # API
 PORT=8000
 ALLOWED_ORIGINS=https://analytics.bdren.edu.bd
-```
+\`\`\`
 
 ## Backup and Restore
 
 ### Database Backup
 
 1. Manual backup:
-   ```bash
+   \`\`\`bash
    ./deploy/backup.sh
-   ```
+   \`\`\`
 
 2. Automated daily backups are configured in Kubernetes CronJob
 
 ### Restore from Backup
 
-```bash
+\`\`\`bash
 ./deploy/restore.sh <backup-file>
-```
+\`\`\`
 
 ## Troubleshooting
 
@@ -159,27 +159,27 @@ ALLOWED_ORIGINS=https://analytics.bdren.edu.bd
 ### Health Checks
 
 1. Application Health:
-   ```bash
+   \`\`\`bash
    curl https://analytics.bdren.edu.bd/health
-   ```
+   \`\`\`
 
 2. Database Health:
-   ```bash
+   \`\`\`bash
    kubectl exec -it $(kubectl get pod -l app=postgres -n bdren -o jsonpath='{.items[0].metadata.name}') -n bdren -- pg_isready
-   ```
+   \`\`\`
 
 ## Rollback Procedure
 
 1. Identify the previous working version
 2. Update the deployment:
-   ```bash
+   \`\`\`bash
    kubectl set image deployment/student-analytics student-analytics=your-registry.com/student-analytics:previous-version -n bdren
-   ```
+   \`\`\`
 
 3. Monitor the rollback:
-   ```bash
+   \`\`\`bash
    kubectl rollout status deployment/student-analytics -n bdren
-   ```
+   \`\`\`
 
 ## Security Considerations
 

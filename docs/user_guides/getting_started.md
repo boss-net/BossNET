@@ -12,36 +12,36 @@ Before you begin working with the Bangladesh Student Data Analysis project, ensu
 ## Initial Setup
 
 1. Clone the repository:
-   ```bash
+   \`\`\`bash
    git clone [repository-url]
-   cd student-data-bangladesh
-   ```
+   cd bossnet
+   \`\`\`
 
 2. Create and activate a virtual environment:
-   ```bash
+   \`\`\`bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+   \`\`\`
 
 3. Install dependencies:
-   ```bash
+   \`\`\`bash
    pip install -r requirements.txt
-   ```
+   \`\`\`
 
 4. Set up environment variables:
-   ```bash
+   \`\`\`bash
    cp .env.example .env
    # Edit .env with your actual configuration values
-   ```
+   \`\`\`
 
 5. Configure the database:
-   ```bash
+   \`\`\`bash
    # Create the database
    createdb student_analytics_db
 
    # Run migrations
    python src/data_processing/run_migrations.py
-   ```
+   \`\`\`
 
 ## Project Structure Overview
 
@@ -60,34 +60,34 @@ Before you begin working with the Bangladesh Student Data Analysis project, ensu
 To process new data:
 1. Place raw data files in appropriate subdirectories under `raw_data/`
 2. Run the data processing pipeline:
-   ```bash
+   \`\`\`bash
    python src/data_processing/process_data.py
-   ```
+   \`\`\`
 
 ### 2. Running Analysis
 
 1. Start Jupyter Lab:
-   ```bash
+   \`\`\`bash
    jupyter lab
-   ```
+   \`\`\`
 2. Navigate to `notebooks/` directory
 3. Choose the appropriate analysis notebook
 
 ### 3. Generating Reports
 
-```bash
+\`\`\`bash
 python src/reports/generate_reports.py --type [report_type] --output [output_dir]
-```
+\`\`\`
 
 ### 4. Running Tests
 
-```bash
+\`\`\`bash
 # Run all tests
 pytest
 
 # Run specific test category
 pytest tests/data_quality/
-```
+\`\`\`
 
 ## Data Sources Integration
 
@@ -95,16 +95,16 @@ pytest tests/data_quality/
 1. Obtain API credentials from BANBEIS
 2. Configure in `.env` file
 3. Use the data fetching scripts:
-   ```bash
+   \`\`\`bash
    python src/data_processing/fetch_banbeis_data.py
-   ```
+   \`\`\`
 
 ### Education Board Results
 1. Configure education board API access
 2. Run the results processing script:
-   ```bash
+   \`\`\`bash
    python src/data_processing/process_board_results.py
-   ```
+   \`\`\`
 
 ## Best Practices
 

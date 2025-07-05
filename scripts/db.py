@@ -14,13 +14,13 @@ project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from alembic import command
 from src.config import settings
-from src.database.base import Base, sync_engine, async_engine
+from src.database.base import Base, async_engine, sync_engine
 from src.models import *  # Import all models to ensure they're registered with SQLAlchemy
 
 # Configure logging
@@ -36,10 +36,10 @@ ALEMBIC_CFG = PROJECT_ROOT / "alembic.ini"
 def run_migrations():
     """Run database migrations using Alembic."""
     logger.info("Running database migrations...")
-    
+
     # Configure Alembic
     alembic_cfg = Config(str(ALEMBIC_CFG))
-    
+
     try:
         # Run the upgrade command
         command.upgrade(alembic_cfg, "head")
@@ -64,10 +64,10 @@ def create_tables():
 async def drop_tables():
     """Drop all database tables."""
     confirm = input("Are you sure you want to drop all tables? This will delete all data. (y/n): ")
-    if confirm.lower() != 'y':
+    if confirm.lower() != "y":
         logger.info("Operation cancelled")
         return
-    
+
     logger.info("Dropping all database tables...")
     try:
         async with async_engine.begin() as conn:
@@ -81,13 +81,13 @@ async def drop_tables():
 def reset_database():
     """Reset the database by dropping and recreating all tables."""
     logger.info("Resetting database...")
-    
+
     # Drop all tables
     asyncio.run(drop_tables())
-    
+
     # Create all tables
     create_tables()
-    
+
     logger.info("Database reset complete")
 
 
@@ -109,33 +109,33 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Database management utility")
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
-    
+
     # Migrate command
     migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
-    
+
     # Create tables command
     create_parser = subparsers.add_parser("create-tables", help="Create database tables")
-    
+
     # Drop tables command
     drop_parser = subparsers.add_parser("drop-tables", help="Drop all database tables")
-    
+
     # Reset database command
     reset_parser = subparsers.add_parser("reset", help="Reset the database (drop and recreate all tables)")
-    
+
     # Check connection command
     check_parser = subparsers.add_parser("check", help="Check database connection")
-    
+
     return parser.parse_args()
 
 
 def main():
     """Main entry point for the database management script."""
     args = parse_args()
-    
+
     if not args.command:
         logger.error("No command specified")
         return
-    
+
     try:
         if args.command == "migrate":
             run_migrations()

@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[169],{9169:(e,r,l)=>{l.r(r),l.d(r,{RemoveDarkreader:()=>n});var t=l(364);function n(){return(0,t.useEffect)(()=>{let e=Array.from(document.querySelectorAll("style.darkreader"));e.length&&e.forEach(e=>{var r;return null===(r=e.parentElement)||void 0===r?void 0:r.removeChild(e)})},[]),null}}}]);

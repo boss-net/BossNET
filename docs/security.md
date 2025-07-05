@@ -48,17 +48,17 @@ This document outlines the security measures and configurations implemented in t
 ## Security Configurations
 
 ### Access Levels
-```python
+\`\`\`python
 ACCESS_LEVELS = {
     'ADMIN': 100,
     'ANALYST': 75,
     'RESEARCHER': 50,
     'VIEWER': 25
 }
-```
+\`\`\`
 
 ### Sensitive Fields
-```python
+\`\`\`python
 SENSITIVE_FIELDS = [
     'student_id',
     'name',
@@ -67,17 +67,17 @@ SENSITIVE_FIELDS = [
     'guardian_info',
     'contact_number'
 ]
-```
+\`\`\`
 
 ### Data Retention Periods
-```python
+\`\`\`python
 RETENTION_PERIODS = {
     'raw_data': 365,       # 1 year
     'processed_data': 730,  # 2 years
     'audit_logs': 1825,    # 5 years
     'user_activity': 180   # 6 months
 }
-```
+\`\`\`
 
 ## Implementation Guidelines
 
@@ -108,14 +108,14 @@ RETENTION_PERIODS = {
 ## Security Headers
 
 All API responses include:
-```http
+\`\`\`http
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 Content-Security-Policy: default-src 'self'
 Referrer-Policy: strict-origin-when-cross-origin
-```
+\`\`\`
 
 ## Compliance
 

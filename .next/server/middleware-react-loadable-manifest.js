@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"src/app/components/ClientLayout.tsx -> ../../components/client/RemoveDarkreader\":{\"id\":\"src/app/components/ClientLayout.tsx -> ../../components/client/RemoveDarkreader\",\"files\":[\"static/chunks/_app-pages-browser_src_components_client_RemoveDarkreader_tsx.js\"]}}"

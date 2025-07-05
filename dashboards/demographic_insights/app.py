@@ -4,31 +4,32 @@ Demographic Insights Dashboard
 Interactive dashboard for analyzing student demographics and their academic performance.
 """
 
+import hashlib
+import json
 import os
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-import plotly.figure_factory as ff
-import streamlit as st
-from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+import streamlit as st
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+
 # Load environment variables
-load_dotenv(Path(__file__).parent.parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Page configuration
 st.set_page_config(
-    page_title="Demographic Insights Dashboard",
-    page_icon="👥",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Demographic Insights Dashboard", page_icon="👥", layout="wide", initial_sidebar_state="expanded"
 )
 
 # Custom CSS for better styling
-st.markdown("""
+st.markdown(
+    """
     <style>
     .main .block-container {
         padding: 2rem 3rem;
@@ -51,157 +52,178 @@ st.markdown("""
         padding: 0 1rem;
         border-radius: 0.5rem 0.5rem 0 0;
     }
+    .highlight-metric {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin: 0.5rem 0;
+    }
+    .insight-box {
+        background-color: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_data(ttl=3600)  # Cache data for 1 hour
-def load_subject_performance():
-    """Load subject-wise performance data."""
-    try:
-        db_url = os.getenv('DATABASE_URL', "postgresql://postgres:postgres@localhost:5432/student_data_db")
-        engine = create_engine(db_url)
-        
-        query = """
-        SELECT 
-            s.student_id,
-            sub.subject_name,
-            AVG(g.grade) as avg_grade,
-            COUNT(g.grade_id) as grade_count,
-            MIN(g.grade) as min_grade,
-            MAX(g.grade) as max_grade
-        FROM students s
-        JOIN grades g ON s.student_id = g.student_id
-        JOIN courses c ON g.course_id = c.course_id
-        JOIN subjects sub ON c.subject_id = sub.subject_id
-        GROUP BY s.student_id, sub.subject_name
-        """
-        return pd.read_sql(query, engine)
-    except Exception as e:
-        st.error(f"Error loading subject performance data: {str(e)}")
-        return pd.DataFrame()
-
-@st.cache_data(ttl=3600)
 def load_demographic_data():
     """Load demographic and performance data from the database with enhanced metrics."""
     try:
         # Connect to the database
-        db_url = os.getenv('DATABASE_URL', "postgresql://postgres:postgres@localhost:5432/student_data_db")
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/student_data_db")
         engine = create_engine(db_url)
-        
+
         # Query to get comprehensive student demographic and performance data
         query = """
         WITH student_demographics AS (
-            SELECT 
-                s.student_id,
+            SELECT
+                s.id as student_id,
+                s.student_id as student_code,
                 s.first_name || ' ' || s.last_name as student_name,
                 s.gender,
                 s.date_of_birth,
-                s.enrollment_date,
-                s.address,
-                s.phone,
-                s.email,
+                s.current_class,
+                s.current_section,
+                s.status,
+                s.is_scholarship_recipient,
+                s.is_special_needs,
+                s.monthly_family_income,
                 EXTRACT(YEAR FROM age(s.date_of_birth)) as age,
-                CASE 
-                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) < 10 THEN 'Under 10'
-                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 10 AND 12 THEN '10-12'
-                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 13 AND 15 THEN '13-15'
-                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 16 AND 18 THEN '16-18'
+                CASE
+                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) < 6 THEN 'Under 6'
+                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 6 AND 8 THEN '6-8'
+                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 9 AND 11 THEN '9-11'
+                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 12 AND 14 THEN '12-14'
+                    WHEN EXTRACT(YEAR FROM age(s.date_of_birth)) BETWEEN 15 AND 17 THEN '15-17'
                     ELSE '18+'
                 END as age_group,
-                CASE 
-                    WHEN s.address ILIKE '%rural%' THEN 'Rural'
-                    WHEN s.address IS NULL THEN 'Unknown'
-                    ELSE 'Urban' 
-                END as location_type,
-                c.class_name,
-                c.class_id,
-                t.first_name || ' ' || t.last_name as teacher_name,
-                LEFT(c.class_name, 1) as grade_level,
-                AVG(g.grade) as avg_grade,
-                COUNT(g.grade_id) as grades_count,
-                COUNT(DISTINCT g.course_id) as courses_taken,
-                COUNT(CASE WHEN g.grade >= 90 THEN 1 END) as a_grades,
-                COUNT(CASE WHEN g.grade >= 80 AND g.grade < 90 THEN 1 END) as b_grades,
-                COUNT(CASE WHEN g.grade >= 70 AND g.grade < 80 THEN 1 END) as c_grades,
-                COUNT(CASE WHEN g.grade >= 60 AND g.grade < 70 THEN 1 END) as d_grades,
-                COUNT(CASE WHEN g.grade < 60 THEN 1 END) as f_grades,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY g.grade) as median_grade,
-                STDDEV(g.grade) as grade_std_dev,
-                MIN(g.grade) as min_grade,
-                MAX(g.grade) as max_grade,
-                MAX(g.last_updated) as last_grade_update
+                CASE
+                    WHEN s.monthly_family_income < 10000 THEN 'Low Income'
+                    WHEN s.monthly_family_income BETWEEN 10000 AND 30000 THEN 'Middle Income'
+                    WHEN s.monthly_family_income > 30000 THEN 'High Income'
+                    ELSE 'Unknown'
+                END as income_category,
+
+                -- Geographic information
+                d.name as division,
+                dist.name as district,
+                u.name as upazila,
+
+                -- School information
+                sch.name as school_name,
+                sch.type as school_type,
+                sch.category as school_category,
+
+                -- Enrollment information
+                e.academic_year,
+                e.section,
+                e.roll_number,
+                e.enrollment_date,
+                e.final_percentage,
+                e.final_grade,
+                e.final_result,
+
+                -- Performance metrics
+                COALESCE(AVG(ar.percentage), 0) as avg_grade,
+                COUNT(ar.id) as grades_count,
+                COUNT(DISTINCT ar.subject_id) as subjects_count,
+                COUNT(CASE WHEN ar.percentage >= 90 THEN 1 END) as a_grades,
+                COUNT(CASE WHEN ar.percentage >= 80 AND ar.percentage < 90 THEN 1 END) as b_grades,
+                COUNT(CASE WHEN ar.percentage >= 70 AND ar.percentage < 80 THEN 1 END) as c_grades,
+                COUNT(CASE WHEN ar.percentage >= 60 AND ar.percentage < 70 THEN 1 END) as d_grades,
+                COUNT(CASE WHEN ar.percentage < 60 THEN 1 END) as f_grades,
+
+                -- Attendance metrics
+                COALESCE(AVG(CASE WHEN att.status = 'present' THEN 1.0 ELSE 0.0 END) * 100, 0) as attendance_rate,
+                COUNT(att.id) as total_attendance_records,
+
+                MAX(ar.created_at) as last_assessment_date
+
             FROM students s
-            LEFT JOIN classes c ON s.class_id = c.class_id
-            LEFT JOIN teachers t ON c.teacher_id = t.teacher_id
-            LEFT JOIN grades g ON s.student_id = g.student_id
-            GROUP BY s.student_id, s.first_name, s.last_name, s.gender, 
-                     s.date_of_birth, s.enrollment_date, s.address, s.phone, s.email,
-                     c.class_name, c.class_id, t.first_name, t.last_name
+            LEFT JOIN enrollments e ON s.id = e.student_id AND e.is_active = true
+            LEFT JOIN schools sch ON e.school_id = sch.id
+            LEFT JOIN divisions d ON s.division_id = d.id
+            LEFT JOIN districts dist ON s.district_id = dist.id
+            LEFT JOIN upazilas u ON s.upazila_id = u.id
+            LEFT JOIN assessment_results ar ON s.id = ar.student_id
+            LEFT JOIN attendances att ON s.id = att.student_id
+            WHERE s.is_deleted = false
+            AND s.status = 'active'
+            GROUP BY s.id, s.student_id, s.first_name, s.last_name, s.gender,
+                     s.date_of_birth, s.current_class, s.current_section, s.status,
+                     s.is_scholarship_recipient, s.is_special_needs, s.monthly_family_income,
+                     d.name, dist.name, u.name, sch.name, sch.type, sch.category,
+                     e.academic_year, e.section, e.roll_number, e.enrollment_date,
+                     e.final_percentage, e.final_grade, e.final_result
         )
-        SELECT 
+        SELECT
             *,
-            CASE 
+            CASE
                 WHEN avg_grade >= 90 THEN 'A (90-100)'
                 WHEN avg_grade >= 80 THEN 'B (80-89)'
                 WHEN avg_grade >= 70 THEN 'C (70-79)'
                 WHEN avg_grade >= 60 THEN 'D (60-69)'
-                ELSE 'F (<60)'
+                WHEN avg_grade > 0 THEN 'F (<60)'
+                ELSE 'No Grades'
             END as performance_category,
-            CASE 
+            CASE
                 WHEN avg_grade >= 90 THEN 'A'
                 WHEN avg_grade >= 80 THEN 'B'
                 WHEN avg_grade >= 70 THEN 'C'
                 WHEN avg_grade >= 60 THEN 'D'
-                ELSE 'F'
+                WHEN avg_grade > 0 THEN 'F'
+                ELSE 'N/A'
             END as performance_letter
-        FROM student_demographics;
+        FROM student_demographics
+        ORDER BY student_name;
         """
-        
+
         df = pd.read_sql(query, engine)
-        
+
         # Convert date columns to datetime
-        date_columns = ['date_of_birth', 'enrollment_date', 'last_grade_update']
+        date_columns = ["date_of_birth", "enrollment_date", "last_assessment_date"]
         for col in date_columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col])
-        
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+
         # Calculate additional metrics
-        df['age'] = (pd.Timestamp.now() - df['date_of_birth']).dt.days // 365
-        
+        if "date_of_birth" in df.columns:
+            df["age"] = (pd.Timestamp.now() - df["date_of_birth"]).dt.days // 365
+
         # Add year and month columns for time series analysis
-        if 'enrollment_date' in df.columns:
-            df['enrollment_year'] = df['enrollment_date'].dt.year
-            df['enrollment_month'] = df['enrollment_date'].dt.month
-            df['enrollment_year_month'] = df['enrollment_date'].dt.to_period('M').astype(str)
-        
-        # Calculate performance score (1-5 scale)
-        df['performance_score'] = pd.cut(
-            df['avg_grade'],
-            bins=[0, 59, 69, 79, 89, 100],
-            labels=[1, 2, 3, 4, 5],
-            right=False
-        )
-        
+        if "enrollment_date" in df.columns:
+            df["enrollment_year"] = df["enrollment_date"].dt.year
+            df["enrollment_month"] = df["enrollment_date"].dt.month
+            df["enrollment_year_month"] = df["enrollment_date"].dt.to_period("M").astype(str)
+
         return df
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return pd.DataFrame()
 
+
 def setup_sidebar(df):
     """Set up the sidebar with enhanced filters and options."""
     st.sidebar.title("🔍 Filters & Options")
-    
+
     # Date range filter
     with st.sidebar.expander("📅 Date Range", expanded=False):
-        if 'enrollment_date' in df.columns:
-            min_date = df['enrollment_date'].min().to_pydatetime()
-            max_date = df['enrollment_date'].max().to_pydatetime()
+        if "enrollment_date" in df.columns and not df["enrollment_date"].isna().all():
+            min_date = df["enrollment_date"].min().to_pydatetime()
+            max_date = df["enrollment_date"].max().to_pydatetime()
             date_range = st.date_input(
                 "Enrollment Date Range",
                 value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
-                help="Filter students by their enrollment date range"
+                help="Filter students by their enrollment date range",
             )
             if len(date_range) == 2:
                 start_date, end_date = date_range
@@ -209,1738 +231,701 @@ def setup_sidebar(df):
                 start_date, end_date = min_date, max_date
         else:
             start_date, end_date = None, None
-    
+
     # Class and grade filters
     with st.sidebar.expander("🏫 Class & Grade", expanded=True):
-        # Grade level multi-select
-        if 'grade_level' in df.columns:
-            grade_options = sorted(df['grade_level'].dropna().unique().tolist())
-            selected_grades = st.multiselect(
-                "Grade Levels",
-                options=grade_options,
-                default=grade_options,
-                help="Filter by one or more grade levels"
-            )
-        else:
-            selected_grades = []
-        
         # Class multi-select
-        if 'class_name' in df.columns:
-            class_options = sorted(df['class_name'].dropna().unique().tolist())
+        if "current_class" in df.columns:
+            class_options = sorted(df["current_class"].dropna().unique().tolist())
             selected_classes = st.multiselect(
                 "Classes",
                 options=class_options,
-                default=class_options[:min(3, len(class_options))],
-                help="Filter by one or more classes"
+                default=class_options[: min(5, len(class_options))],
+                help="Filter by one or more classes",
             )
         else:
             selected_classes = []
-    
+
+        # Section filter
+        if "current_section" in df.columns:
+            section_options = ["All"] + sorted(df["current_section"].dropna().unique().tolist())
+            selected_section = st.selectbox("Section", section_options, index=0, help="Filter by section")
+        else:
+            selected_section = "All"
+
     # Demographic filters
     with st.sidebar.expander("👥 Demographics", expanded=True):
         # Gender filter
-        if 'gender' in df.columns:
-            gender_options = ["All"] + sorted(df['gender'].dropna().unique().tolist())
-            selected_gender = st.selectbox(
-                "Gender",
-                gender_options,
-                index=0,
-                help="Filter by gender"
-            )
+        if "gender" in df.columns:
+            gender_options = ["All"] + sorted(df["gender"].dropna().unique().tolist())
+            selected_gender = st.selectbox("Gender", gender_options, index=0, help="Filter by gender")
         else:
             selected_gender = "All"
-        
+
         # Age group filter
-        if 'age_group' in df.columns:
-            age_groups = ["All"] + sorted(df['age_group'].dropna().unique().tolist())
-            selected_age_group = st.selectbox(
-                "Age Group",
-                age_groups,
-                index=0,
-                help="Filter by age group"
-            )
+        if "age_group" in df.columns:
+            age_groups = ["All"] + sorted(df["age_group"].dropna().unique().tolist())
+            selected_age_group = st.selectbox("Age Group", age_groups, index=0, help="Filter by age group")
         else:
             selected_age_group = "All"
-        
-        # Location type filter
-        if 'location_type' in df.columns:
-            location_types = ["All"] + sorted(df['location_type'].dropna().unique().tolist())
-            selected_location = st.selectbox(
-                "Location Type",
-                location_types,
-                index=0,
-                help="Filter by urban/rural location"
-            )
-        else:
-            selected_location = "All"
-    
-    # Performance filters
-    with st.sidebar.expander("📊 Performance", expanded=True):
-        # Performance category multi-select
-        if 'performance_category' in df.columns:
-            perf_categories = sorted(df['performance_category'].dropna().unique().tolist())
-            selected_perf_cats = st.multiselect(
-                "Performance Categories",
-                options=perf_categories,
-                default=perf_categories,
-                help="Filter by one or more performance categories"
-            )
-        else:
-            selected_perf_cats = []
-        
-        # Grade range slider
-        if 'avg_grade' in df.columns:
-            min_grade = int(df['avg_grade'].min())
-            max_grade = int(min(100, df['avg_grade'].max() + 1))
-            grade_range = st.slider(
-                "Average Grade Range",
-                min_value=0,
-                max_value=100,
-                value=(min_grade, max_grade),
-                step=5,
-                help="Filter by minimum and maximum average grade"
-            )
-            min_grade, max_grade = grade_range
-        else:
-            min_grade, max_grade = 0, 100
-    
-    # Additional options
-    with st.sidebar.expander("⚙️ Display Options", expanded=False):
-        show_raw_data = st.checkbox(
-            "Show Raw Data",
-            value=False,
-            help="Display the raw data table at the bottom of the dashboard"
-        )
-        
-        show_advanced_metrics = st.checkbox(
-            "Show Advanced Metrics",
-            value=False,
-            help="Display additional statistical metrics and visualizations"
-        )
-    
-    return {
-        'start_date': start_date,
-        'end_date': end_date,
-        'grades': selected_grades,
-        'classes': selected_classes,
-        'gender': selected_gender,
-        'age_group': selected_age_group,
-        'location': selected_location,
-        'performance_categories': selected_perf_cats,
-        'min_grade': min_grade,
-        'max_grade': max_grade,
-        'show_raw_data': show_raw_data,
-        'show_advanced_metrics': show_advanced_metrics
-    }
 
-def filter_data(df, filters):
-    """
-    Filter the dataset based on the provided filters with enhanced filtering capabilities.
-    
-    Args:
-        df (pd.DataFrame): The input DataFrame containing student data
-        filters (dict): Dictionary containing filter parameters
-        
-    Returns:
-        pd.DataFrame: Filtered DataFrame
-    """
-    if df.empty:
-        return df
-        
-    filtered = df.copy()
-    
-    # Date range filter
-    if filters['start_date'] and filters['end_date'] and 'enrollment_date' in filtered.columns:
-        mask = (
-            (filtered['enrollment_date'].dt.date >= filters['start_date']) & 
-            (filtered['enrollment_date'].dt.date <= filters['end_date'])
-        )
-        filtered = filtered[mask]
-    
-    # Grade level filter
-    if filters['grades'] and 'grade_level' in filtered.columns:
-        filtered = filtered[filtered['grade_level'].isin(filters['grades'])]
-    
-    # Class filter
-    if filters['classes'] and 'class_name' in filtered.columns:
-        filtered = filtered[filtered['class_name'].isin(filters['classes'])]
-    
-    # Gender filter
-    if filters['gender'] != "All" and 'gender' in filtered.columns:
-        filtered = filtered[filtered['gender'] == filters['gender']]
-    
-    # Age group filter
-    if filters['age_group'] != "All" and 'age_group' in filtered.columns:
-        filtered = filtered[filtered['age_group'] == filters['age_group']]
-    
-    # Location type filter
-    if filters['location'] != "All" and 'location_type' in filtered.columns:
-        filtered = filtered[filtered['location_type'] == filters['location']]
-    
-    # Performance category filter
-    if filters['performance_categories'] and 'performance_category' in filtered.columns:
-        filtered = filtered[filtered['performance_category'].isin(filters['performance_categories'])]
-    
-    # Grade range filter
-    if 'avg_grade' in filtered.columns:
-        filtered = filtered[
-            (filtered['avg_grade'] >= filters['min_grade']) & 
-            (filtered['avg_grade'] <= filters['max_grade'])
-        ]
-    
-    return filtered
-
-def display_metrics(filtered_df, show_advanced=False):
-    """
-    Display key demographic and performance metrics with enhanced visualizations.
-    
-    Args:
-        filtered_df (pd.DataFrame): The filtered DataFrame containing student data
-        show_advanced (bool): Whether to show advanced metrics
-    """
-    if filtered_df.empty:
-        st.warning("No data available for the selected filters.")
-        return
-    
-    # Calculate basic metrics
-    total_students = len(filtered_df)
-    avg_age = filtered_df['age'].mean() if 'age' in filtered_df.columns else None
-    avg_grade = filtered_df['avg_grade'].mean() if 'avg_grade' in filtered_df.columns else None
-    
-    # Calculate performance distribution if available
-    if 'performance_category' in filtered_df.columns:
-        perf_dist = filtered_df['performance_category'].value_counts(normalize=True).mul(100).round(1)
-        top_perf_group = perf_dist.idxmax() if not perf_dist.empty else 'N/A'
-        top_perf_pct = perf_dist.max() if not perf_dist.empty else 0
-    else:
-        top_perf_group = 'N/A'
-        top_perf_pct = 0
-    
-    # Create metric cards with improved styling
-    st.markdown("""
-    <style>
-    .metric-card {
-        background: white;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-    }
-    .metric-value {
-        font-size: 24px;
-        font-weight: 700;
-        color: #2c3e50;
-        margin: 5px 0;
-    }
-    .metric-label {
-        font-size: 14px;
-        color: #7f8c8d;
-        margin: 0;
-    }
-    .metric-subtext {
-        font-size: 12px;
-        color: #95a5a6;
-        margin: 5px 0 0 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Create columns for metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    # Metric 1: Total Students
-    with col1:
-        st.markdown(f"""
-        <div class='metric-card'>
-            <p class='metric-label'>👥 Total Students</p>
-            <p class='metric-value'>{total_students:,}</p>
-            <p class='metric-subtext'>across all selected filters</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Metric 2: Average Age
-    with col2:
-        age_text = f"{avg_age:.1f} years" if avg_age is not None else "N/A"
-        st.markdown(f"""
-        <div class='metric-card'>
-            <p class='metric-label'>🎂 Average Age</p>
-            <p class='metric-value'>{age_text}</p>
-            <p class='metric-subtext'>years old</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Metric 3: Average Grade
-    with col3:
-        grade_text = f"{avg_grade:.1f}" if avg_grade is not None else "N/A"
-        st.markdown(f"""
-        <div class='metric-card'>
-            <p class='metric-label'>📊 Average Grade</p>
-            <p class='metric-value'>{grade_text}/100</p>
-            <p class='metric-subtext'>across all subjects</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Metric 4: Top Performing Group
-    with col4:
-        st.markdown(f"""
-        <div class='metric-card'>
-            <p class='metric-label'>🏆 Top Performance</p>
-            <p class='metric-value'>{top_perf_group}</p>
-            <p class='metric-subtext'>{top_perf_pct:.1f}% of students</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Show additional metrics if advanced mode is enabled
-    if show_advanced and not filtered_df.empty:
-        st.markdown("---")
-        st.subheader("Advanced Metrics")
-        
-        # Create columns for advanced metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if 'median_grade' in filtered_df.columns:
-                median_grade = filtered_df['median_grade'].median()
-                st.metric("Median Grade", f"{median_grade:.1f}")
-        
-        with col2:
-            if 'grade_std_dev' in filtered_df.columns:
-                avg_std_dev = filtered_df['grade_std_dev'].mean()
-                st.metric("Avg. Std. Dev.", f"{avg_std_dev:.1f}")
-        
-        with col3:
-            if 'a_grades' in filtered_df.columns and 'grades_count' in filtered_df.columns:
-                total_a = filtered_df['a_grades'].sum()
-                total_grades = filtered_df['grades_count'].sum()
-                a_percent = (total_a / total_grades * 100) if total_grades > 0 else 0
-                st.metric("A Grades", f"{a_percent:.1f}%")
-        
-        with col4:
-            if 'f_grades' in filtered_df.columns and 'grades_count' in filtered_df.columns:
-                total_f = filtered_df['f_grades'].sum()
-                total_grades = filtered_df['grades_count'].sum()
-                f_percent = (total_f / total_grades * 100) if total_grades > 0 else 0
-                st.metric("F Grades", f"{f_percent:.1f}%")
-        
-        # Show grade distribution if available
-        if all(col in filtered_df.columns for col in ['a_grades', 'b_grades', 'c_grades', 'd_grades', 'f_grades']):
-            st.markdown("### Grade Distribution")
-            grade_counts = {
-                'A': filtered_df['a_grades'].sum(),
-                'B': filtered_df['b_grades'].sum(),
-                'C': filtered_df['c_grades'].sum(),
-                'D': filtered_df['d_grades'].sum(),
-                'F': filtered_df['f_grades'].sum()
-            }
-            
-            fig = px.pie(
-                names=list(grade_counts.keys()),
-                values=list(grade_counts.values()),
-                title='Grade Distribution',
-                color_discrete_sequence=px.colors.qualitative.Pastel
+        # Income category filter
+        if "income_category" in df.columns:
+            income_categories = ["All"] + sorted(df["income_category"].dropna().unique().tolist())
+            selected_income = st.selectbox(
+                "Income Category", income_categories, index=0, help="Filter by family income category"
             )
-            st.plotly_chart(fig, use_container_width=True)
+        else:
+            selected_income = "All"
 
-def display_demographic_visualizations(filtered_df, show_advanced=False):
-    """
-    Display demographic visualizations with tabs for different analysis views.
-    
-    Args:
-        filtered_df (pd.DataFrame): The filtered DataFrame containing student data
-        show_advanced (bool): Whether to show advanced visualizations
-    """
-    # Create tabs for different visualizations
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Demographics", 
-        "📈 Performance", 
-        "🌍 Geographic",
-        "📅 Trends"
-    ])
-    
-    with tab1:
-        # Demographic distribution
-        st.subheader("👥 Demographic Distribution")
-        
-        if filtered_df.empty:
-            st.warning("No data available for the selected filters.")
+    # Geographic filters
+    with st.sidebar.expander("🌍 Geographic", expanded=False):
+        # Division filter
+        if "division" in df.columns:
+            division_options = ["All"] + sorted(df["division"].dropna().unique().tolist())
+            selected_division = st.selectbox("Division", division_options, index=0, help="Filter by administrative division")
         else:
-            # Create columns for better layout
-            col1, col2 = st.columns(2)
-        
-        # Second row of demographic charts
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            # Location type distribution
-            if 'location_type' in filtered_df.columns:
-                loc_counts = filtered_df['location_type'].value_counts().reset_index()
-                loc_counts.columns = ['Location Type', 'Count']
-                
-                fig_loc = px.pie(
-                    loc_counts,
-                    names='Location Type',
-                    values='Count',
-                    title='Urban vs Rural Distribution',
-                    color='Location Type',
-                    color_discrete_map={'Urban': '#636EFA', 'Rural': '#EF553B'},
-                    hole=0.5
+            selected_division = "All"
+
+        # District filter
+        if "district" in df.columns:
+            if selected_division != "All":
+                district_options = ["All"] + sorted(
+                    df[df["division"] == selected_division]["district"].dropna().unique().tolist()
                 )
-                fig_loc.update_traces(
-                    textposition='inside',
-                    textinfo='percent+label',
-                    hovertemplate='<b>%{label}</b><br>%{value} students (%{percent})<extra></extra>',
-                    marker=dict(line=dict(color='#FFFFFF', width=2))
-                )
-                fig_loc.update_layout(
-                    showlegend=False,
-                    margin=dict(t=50, b=20, l=0, r=0),
-                    height=350
-                )
-                st.plotly_chart(fig_loc, use_container_width=True)
-        
-        with col4:
-            # Grade level distribution
-            if 'grade_level' in filtered_df.columns:
-                grade_counts = filtered_df['grade_level'].value_counts().reset_index()
-                grade_counts.columns = ['Grade Level', 'Count']
-                grade_counts = grade_counts.sort_values('Grade Level')
-                
-                fig_grade = px.bar(
-                    grade_counts,
-                    x='Grade Level',
-                    y='Count',
-                    title='Grade Level Distribution',
-                    color='Grade Level',
-                    color_discrete_sequence=px.colors.sequential.Viridis,
-                    text_auto=True
-                )
-                fig_grade.update_traces(
-                    textposition='outside',
-                    hovertemplate='<b>Grade %{x}</b><br>%{y} students<extra></extra>',
-                    marker_line_color='rgb(8,48,107)',
-                    marker_line_width=1.5,
-                    opacity=0.9
-                )
-                fig_grade.update_layout(
-                    xaxis_title="Grade Level",
-                    yaxis_title="Number of Students",
-                    showlegend=False,
-                    margin=dict(t=50, b=80, l=0, r=0),
-                    height=350,
-                    xaxis=dict(tickmode='linear')
-                )
-                st.plotly_chart(fig_grade, use_container_width=True)
-    
-    with tab2:  # Performance Visualizations
-        st.subheader("📈 Performance Metrics")
-        
-        if 'avg_grade' in filtered_df.columns:
-            # Performance distribution by gender and location
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Box plot of grades by gender
-                fig_gender_grade = px.box(
-                    filtered_df,
-                    x='gender',
-                    y='avg_grade',
-                    color='gender',
-                    title='Grade Distribution by Gender',
-                    labels={'gender': 'Gender', 'avg_grade': 'Average Grade'},
-                    color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                fig_gender_grade.update_layout(
-                    xaxis_title="Gender",
-                    yaxis_title="Average Grade",
-                    showlegend=False,
-                    height=400
-                )
-                st.plotly_chart(fig_gender_grade, use_container_width=True)
-            
-            with col2:
-                # Violin plot of grades by location
-                fig_loc_grade = px.violin(
-                    filtered_df,
-                    x='location_type',
-                    y='avg_grade',
-                    color='location_type',
-                    box=True,
-                    points="all",
-                    title='Grade Distribution by Location',
-                    labels={'location_type': 'Location Type', 'avg_grade': 'Average Grade'},
-                    color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                fig_loc_grade.update_layout(
-                    xaxis_title="Location Type",
-                    yaxis_title="Average Grade",
-                    showlegend=False,
-                    height=400
-                )
-                st.plotly_chart(fig_loc_grade, use_container_width=True)
-            
-            # Performance by age group
-            if 'age_group' in filtered_df.columns:
-                fig_age_grade = px.box(
-                    filtered_df,
-                    x='age_group',
-                    y='avg_grade',
-                    color='age_group',
-                    title='Grade Distribution by Age Group',
-                    labels={'age_group': 'Age Group', 'avg_grade': 'Average Grade'},
-                    color_discrete_sequence=px.colors.sequential.Viridis
-                )
-                fig_age_grade.update_layout(
-                    xaxis_title="Age Group",
-                    yaxis_title="Average Grade",
-                    showlegend=False,
-                    height=450,
-                    xaxis=dict(tickangle=-45)
-                )
-                st.plotly_chart(fig_age_grade, use_container_width=True)
-    
-    with tab2:
-        # Performance analysis using the dedicated function
-        st.subheader("📈 Performance Analysis")
-        display_performance_analysis(filtered_df)
-    
-    with tab3:
-        # Geographic distribution
-        st.subheader("🌍 Geographic Distribution")
-        
-        if filtered_df.empty:
-            st.warning("No data available for the selected filters.")
-        else:
-            # Create columns for better layout
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Map visualization
-                st.markdown("#### Student Distribution by Division")
-                
-                # Bangladesh divisions with approximate coordinates
-                bd_divisions = {
-                    'Dhaka': {'lat': 23.8103, 'lon': 90.4125, 'students': 0},
-                    'Chittagong': {'lat': 22.3569, 'lon': 91.7832, 'students': 0},
-                    'Rajshahi': {'lat': 24.3636, 'lon': 88.6241, 'students': 0},
-                    'Khulna': {'lat': 22.8456, 'lon': 89.5403, 'students': 0},
-                    'Barisal': {'lat': 22.7010, 'lon': 90.3535, 'students': 0},
-                    'Sylhet': {'lat': 24.8949, 'lon': 91.8687, 'students': 0},
-                    'Rangpur': {'lat': 25.7439, 'lon': 89.2752, 'students': 0},
-                    'Mymensingh': {'lat': 24.7471, 'lon': 90.4203, 'students': 0}
-                }
-                
-                # Count students per division (mock data - in a real app, this would come from your data)
-                # For now, we'll use random data
-                import random
-                for div in bd_divisions:
-                    bd_divisions[div]['students'] = random.randint(50, 500)
-                
-                # Create map data
-                map_data = pd.DataFrame([
-                    {
-                        'lat': div['lat'],
-                        'lon': div['lon'],
-                        'name': name,
-                        'students': div['students']
-                    }
-                    for name, div in bd_divisions.items()
-                ])
-                
-                # Display the map
-                st.map(
-                    map_data,
-                    latitude='lat',
-                    longitude='lon',
-                    size='students',
-                    color='students',
-                    zoom=6,
-                    use_container_width=True
-                )
-                
-                # Add a disclaimer
-                st.caption("ℹ️ Map shows approximate student distribution by division. Hover over markers for details.")
-                
-                # Add a table with the data
-                st.markdown("#### Student Count by Division")
-                st.dataframe(
-                    map_data[['name', 'students']].rename(columns={'name': 'Division', 'students': 'Students'}),
-                    hide_index=True,
-                    use_container_width=True
-                )
-            
-            with col2:
-                # Location distribution
-                st.markdown("#### Location Type Distribution")
-                if 'location_type' in filtered_df.columns:
-                    loc_dist = filtered_df['location_type'].value_counts().reset_index()
-                    loc_dist.columns = ['Location Type', 'Count']
-                    
-                    # Create a pie chart for location distribution
-                    fig_loc = px.pie(
-                        loc_dist,
-                        values='Count',
-                        names='Location Type',
-                        title='Urban vs Rural Distribution',
-                        hole=0.5,
-                        color_discrete_sequence=px.colors.qualitative.Pastel
-                    )
-                    fig_loc.update_traces(
-                        textposition='inside',
-                        textinfo='percent+label',
-                        hovertemplate='<b>%{label}</b><br>%{value} students<br>%{percent}<extra></extra>'
-                    )
-                    st.plotly_chart(fig_loc, use_container_width=True)
-                else:
-                    st.warning("Location type data not available.")
-                
-                # Performance by location
-                if 'location_type' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-                    st.markdown("#### Performance by Location")
-                    loc_perf = filtered_df.groupby('location_type', as_index=False).agg(
-                        avg_grade=('avg_grade', 'mean'),
-                        count=('student_id', 'count')
-                    )
-                    
-                    fig_loc_perf = px.bar(
-                        loc_perf,
-                        x='location_type',
-                        y='avg_grade',
-                        color='location_type',
-                        text_auto='.1f',
-                        title='Average Grade by Location',
-                        labels={'location_type': 'Location Type', 'avg_grade': 'Average Grade'},
-                        color_discrete_map={'Urban': '#636EFA', 'Rural': '#EF553B'}
-                    )
-                    fig_loc_perf.update_traces(
-                        textposition='outside',
-                        hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-                        customdata=loc_perf[['count']]
-                    )
-                    fig_loc_perf.update_layout(
-                        xaxis_title="Location Type",
-                        yaxis_title="Average Grade",
-                        showlegend=False,
-                        height=350
-                    )
-                    st.plotly_chart(fig_loc_perf, use_container_width=True)
-    
-    with tab4:
-        # Trends over time
-        st.subheader("📅 Trends Over Time")
-        
-        if filtered_df.empty:
-            st.warning("No data available for the selected filters.")
-        else:
-            # Create columns for better layout
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Enrollment trends by year
-                st.markdown("#### Enrollment Trends")
-                
-                # Check if enrollment_date exists and extract year
-                if 'enrollment_date' in filtered_df.columns:
-                    filtered_df['enrollment_year'] = pd.to_datetime(filtered_df['enrollment_date']).dt.year
-                    enroll_trends = filtered_df['enrollment_year'].value_counts().reset_index()
-                    enroll_trends.columns = ['Year', 'Enrollments']
-                    enroll_trends = enroll_trends.sort_values('Year')
-                    
-                    fig_enroll = px.line(
-                        enroll_trends,
-                        x='Year',
-                        y='Enrollments',
-                        title='Student Enrollments by Year',
-                        markers=True,
-                        labels={'Enrollments': 'Number of Students'}
-                    )
-                    fig_enroll.update_traces(
-                        line=dict(width=3, color='#1f77b4'),
-                        marker=dict(size=10, line=dict(width=2, color='DarkSlateGrey')),
-                        hovertemplate='<b>%{x}</b><br>Students: %{y:,}<extra></extra>'
-                    )
-                    fig_enroll.update_layout(
-                        xaxis_title="Year",
-                        yaxis_title="Number of Enrollments",
-                        height=400,
-                        margin=dict(t=50, b=50, l=50, r=50)
-                    )
-                    st.plotly_chart(fig_enroll, use_container_width=True)
-                    
-                    # Add a bar chart for enrollments by month (if data is available)
-                    if 'enrollment_date' in filtered_df.columns:
-                        filtered_df['enrollment_month'] = pd.to_datetime(filtered_df['enrollment_date']).dt.month_name()
-                        month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
-                                      'July', 'August', 'September', 'October', 'November', 'December']
-                        
-                        monthly_enroll = filtered_df['enrollment_month'].value_counts().reindex(month_order).reset_index()
-                        monthly_enroll.columns = ['Month', 'Enrollments']
-                        
-                        fig_monthly = px.bar(
-                            monthly_enroll,
-                            x='Month',
-                            y='Enrollments',
-                            title='Enrollments by Month',
-                            text_auto=True,
-                            labels={'Enrollments': 'Number of Students'}
-                        )
-                        fig_monthly.update_traces(
-                            marker_color='#2ca02c',
-                            hovertemplate='<b>%{x}</b><br>Students: %{y:,}<extra></extra>'
-                        )
-                        fig_monthly.update_layout(
-                            xaxis_title="Month",
-                            yaxis_title="Number of Enrollments",
-                            height=400,
-                            xaxis=dict(tickangle=-45),
-                            margin=dict(t=50, b=100, l=50, r=50)
-                        )
-                        st.plotly_chart(fig_monthly, use_container_width=True)
-                else:
-                    st.info("Enrollment date data not available for trend analysis.")
-            
-            if 'enrollment_year' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-                # Calculate average grade by year
-                perf_trends = filtered_df.groupby('enrollment_year', as_index=False).agg(
-                    avg_grade=('avg_grade', 'mean'),
-                    count=('student_id', 'count')
-                ).sort_values('enrollment_year')
-                
-                # Create a line chart for average grade over time
-                fig_perf = px.line(
-                    perf_trends,
-                    x='enrollment_year',
-                    y='avg_grade',
-                    title='Average Grade by Enrollment Year',
-                    markers=True,
-                    labels={'enrollment_year': 'Enrollment Year', 'avg_grade': 'Average Grade'}
-                )
-                fig_perf.update_traces(
-                    line=dict(width=3, color='#ff7f0e'),
-                    marker=dict(size=10, line=dict(width=2, color='DarkSlateGrey')),
-                    hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-                    customdata=perf_trends[['count']]
-                )
-                fig_perf.update_layout(
-                    xaxis_title="Enrollment Year",
-                    yaxis_title="Average Grade",
-                    height=400,
-                    yaxis=dict(range=[0, 100] if 'avg_grade' in filtered_df.columns else None),
-                    margin=dict(t=50, b=50, l=50, r=50)
-                )
-                st.plotly_chart(fig_perf, use_container_width=True)
-                
-                # Add a scatter plot for grade distribution over time
-                if 'gender' in filtered_df.columns:
-                    fig_scatter = px.scatter(
-                        filtered_df,
-                        x='enrollment_year',
-                        y='avg_grade',
-                        color='gender',
-                        opacity=0.7,
-                        title='Grade Distribution Over Time',
-                        labels={
-                            'enrollment_year': 'Enrollment Year',
-                            'avg_grade': 'Average Grade',
-                            'gender': 'Gender'
-                        },
-                        hover_data=['student_name', 'class_name']
-                    )
-                    fig_scatter.update_traces(
-                        marker=dict(size=10, line=dict(width=1, color='DarkSlateGrey')),
-                        selector=dict(mode='markers')
-                    )
-                    fig_scatter.update_layout(
-                        xaxis_title="Enrollment Year",
-                        yaxis_title="Average Grade",
-                        height=500,
-                        yaxis=dict(range=[0, 100] if 'avg_grade' in filtered_df.columns else None),
-                        margin=dict(t=50, b=50, l=50, r=50),
-                        legend_title_text='Gender'
-                    )
-                    st.plotly_chart(fig_scatter, use_container_width=True)
             else:
-                st.info("Insufficient data for performance trend analysis.")
-        
-        # Advanced: Grade distribution over time
-        if show_advanced and 'enrollment_year' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-            st.markdown("#### Grade Distribution Over Time")
-            
-            # Create a box plot for grade distribution by year
-            fig_box = px.box(
-                filtered_df,
-                x='enrollment_year',
-                y='avg_grade',
-                color='enrollment_year',
-                title='Grade Distribution by Enrollment Year',
-                labels={'enrollment_year': 'Enrollment Year', 'avg_grade': 'Average Grade'},
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_box.update_traces(
-                boxpoints='all',
-                jitter=0.3,
-                pointpos=-1.8,
-                marker=dict(size=4, opacity=0.5)
-            )
-            fig_box.update_layout(
-                xaxis_title="Enrollment Year",
-                yaxis_title="Average Grade",
-                height=500,
-                showlegend=False,
-                margin=dict(t=50, b=50, l=50, r=50),
-                yaxis=dict(range=[0, 100] if 'avg_grade' in filtered_df.columns else None)
-            )
-            st.plotly_chart(fig_box, use_container_width=True)
+                district_options = ["All"] + sorted(df["district"].dropna().unique().tolist())
+            selected_district = st.selectbox("District", district_options, index=0, help="Filter by district")
         else:
-            st.info("Insufficient data for interactive cross-filtering. Please check your filters.")
-        
-        # Interactive cross-filtering with Plotly Express (Advanced Analysis)
-        st.markdown("## 🔍 Interactive Analysis")
-        st.markdown("""
-        Explore relationships between different student attributes and academic performance. 
-        Hover over data points to see detailed information, and use the interactive features 
-        to zoom, pan, and download the visualizations.
-        """)
-        
-        # Add interactive cross-filtering section
-        st.markdown("### 🔄 Interactive Cross-Filtering")
-        st.markdown("""
-        The visualizations below are linked together - selecting points in one visualization 
-        will highlight the corresponding points in the others. This allows you to explore 
-        complex relationships across multiple dimensions of the data.
-        """)
-        
-        # Check if we have the required columns for cross-filtering
-        cross_filter_cols = ['age', 'avg_grade', 'grades_count', 'gender', 'location_type']
-        has_cross_filter_cols = all(col in filtered_df.columns for col in cross_filter_cols)
-        
-        if has_cross_filter_cols and not filtered_df.empty:
-            # Create a 2x2 grid of visualizations
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Scatter plot: Age vs. Average Grade by Gender
-                fig_age_grade = px.scatter(
-                    filtered_df,
-                    x='age',
-                    y='avg_grade',
-                    color='gender',
-                    title='Age vs. Average Grade by Gender',
-                    labels={'age': 'Age', 'avg_grade': 'Average Grade'},
-                    hover_data=['student_name', 'class_name'],
-                    color_discrete_map={'Male': '#1f77b4', 'Female': '#ff7f0e'}
-                )
-                fig_age_grade.update_traces(
-                    marker=dict(size=10, opacity=0.7, line=dict(width=1, color='DarkSlateGrey')),
-                    selector=dict(mode='markers')
-                )
-                fig_age_grade.update_layout(
-                    xaxis_title="Age",
-                    yaxis_title="Average Grade",
-                    height=400,
-                    legend_title_text='Gender',
-                    margin=dict(t=50, b=50, l=50, r=50)
-                )
-                st.plotly_chart(fig_age_grade, use_container_width=True)
-                
-                # Box plot: Grade Distribution by Location
-                fig_box_loc = px.box(
-                    filtered_df,
-                    x='location_type',
-                    y='avg_grade',
-                    color='location_type',
-                    title='Grade Distribution by Location',
-                    labels={'location_type': 'Location Type', 'avg_grade': 'Average Grade'}
-                )
-                fig_box_loc.update_layout(
-                    xaxis_title="Location Type",
-                    yaxis_title="Average Grade",
-                    height=400,
-                    showlegend=False,
-                    margin=dict(t=50, b=50, l=50, r=50)
-                )
-                st.plotly_chart(fig_box_loc, use_container_width=True)
-            
-            with col2:
-                # Scatter plot: Number of Grades vs. Average Grade by Location
-                fig_grades_grade = px.scatter(
-                    filtered_df,
-                    x='grades_count',
-                    y='avg_grade',
-                    color='location_type',
-                    title='Number of Grades vs. Average Grade by Location',
-                    labels={'grades_count': 'Number of Grades', 'avg_grade': 'Average Grade'},
-                    hover_data=['student_name', 'class_name', 'age'],
-                    color_discrete_map={'Urban': '#636EFA', 'Rural': '#EF553B'}
-                )
-                fig_grades_grade.update_traces(
-                    marker=dict(size=10, opacity=0.7, line=dict(width=1, color='DarkSlateGrey')),
-                    selector=dict(mode='markers')
-                )
-                fig_grades_grade.update_layout(
-                    xaxis_title="Number of Grades",
-                    yaxis_title="Average Grade",
-                    height=400,
-                    legend_title_text='Location Type',
-                    margin=dict(t=50, b=50, l=50, r=50)
-                )
-                st.plotly_chart(fig_grades_grade, use_container_width=True)
-                
-                # Violin plot: Grade Distribution by Gender and Location
-                fig_violin = px.violin(
-                    filtered_df,
-                    x='gender',
-                    y='avg_grade',
-                    color='location_type',
-                    box=True,
-                    points="all",
-                    title='Grade Distribution by Gender and Location',
-                    labels={'gender': 'Gender', 'avg_grade': 'Average Grade'},
-                    color_discrete_map={'Urban': '#636EFA', 'Rural': '#EF553B'}
-                )
-                fig_violin.update_layout(
-                    xaxis_title="Gender",
-                    yaxis_title="Average Grade",
-                    height=400,
-                    legend_title_text='Location Type',
-                    margin=dict(t=50, b=50, l=50, r=50)
-                )
-                st.plotly_chart(fig_violin, use_container_width=True)
-                
-                # Add a parallel categories diagram for multi-dimensional analysis
-                st.markdown("### 🔄 Multi-dimensional Relationships")
-                st.markdown("""
-                The parallel categories diagram below shows how different student attributes interact 
-                with each other and with academic performance. The thickness of the lines represents 
-                the number of students in each category combination.
-                """)
-                
-                # Prepare data for parallel categories diagram
-                if all(col in filtered_df.columns for col in ['gender', 'location_type', 'age_group', 'avg_grade']):
-                    # Create grade categories
-                    filtered_df['grade_category'] = pd.cut(
-                        filtered_df['avg_grade'],
-                        bins=[0, 50, 60, 70, 80, 90, 101],
-                        labels=['<50', '50-60', '60-70', '70-80', '80-90', '90+'],
-                        right=False
-                    )
-                    
-                    # Create parallel categories diagram
-                    dimensions = [
-                        {'label': 'Gender', 'values': filtered_df['gender']},
-                        {'label': 'Location', 'values': filtered_df['location_type']},
-                        {'label': 'Age Group', 'values': filtered_df['age_group']},
-                        {'label': 'Grade', 'values': filtered_df['grade_category']}
-                    ]
-                    
-                    fig_parallel = go.Figure(go.Parcats(
-                        dimensions=dimensions,
-                        line={
-                            'color': filtered_df['avg_grade'],
-                            'colorscale': 'Viridis',
-                            'showscale': True,
-                            'colorbar': {'title': 'Avg Grade'}
-                        },
-                        labelfont={'size': 12, 'family': 'Arial'},
-                        tickfont={'size': 10, 'family': 'Arial'},
-                        arrangement='freeform'
-                    ))
-                    
-                    fig_parallel.update_layout(
-                        title='Student Demographics and Performance Relationships',
-                        height=600,
-                        margin=dict(t=80, b=80, l=80, r=80)
-                    )
-                    
-                    st.plotly_chart(fig_parallel, use_container_width=True)
-                    
-                    # Add a sunburst chart for hierarchical data visualization
-                    st.markdown("### 🌟 Hierarchical Data Exploration")
-                    st.markdown("""
-                    The sunburst chart below provides a hierarchical view of student data, 
-                    allowing you to explore the distribution of students across different 
-                    demographic categories and their academic performance.
-                    """)
-                    
-                    # Prepare data for sunburst chart
-                    if all(col in filtered_df.columns for col in ['gender', 'location_type', 'age_group', 'avg_grade']):
-                        # Create grade categories if not already created
-                        if 'grade_category' not in filtered_df.columns:
-                            filtered_df['grade_category'] = pd.cut(
-                                filtered_df['avg_grade'],
-                                bins=[0, 50, 60, 70, 80, 90, 101],
-                                labels=['<50', '50-60', '60-70', '70-80', '80-90', '90+'],
-                                right=False
-                            )
-                        
-                        # Create a hierarchical dataframe
-                        sunburst_df = filtered_df.groupby(
-                            ['gender', 'location_type', 'age_group', 'grade_category']
-                        ).size().reset_index(name='count')
-                        
-                        # Create sunburst chart
-                        fig_sunburst = px.sunburst(
-                            sunburst_df,
-                            path=['gender', 'location_type', 'age_group', 'grade_category'],
-                            values='count',
-                            title='Student Distribution by Demographics and Performance',
-                            color='grade_category',
-                            color_discrete_sequence=px.colors.sequential.Viridis,
-                            height=800
-                        )
-                        
-                        fig_sunburst.update_traces(
-                            textinfo='label+percent parent',
-                            hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percentParent:.1%} of parent',
-                            marker=dict(line=dict(color='#ffffff', width=0.5))
-                        )
-                        
-                        fig_sunburst.update_layout(
-                            margin=dict(t=40, b=0, l=0, r=0),
-                            coloraxis_showscale=False
-                        )
-                        
-                        st.plotly_chart(fig_sunburst, use_container_width=True)
-                        
-                        # Add a 3D scatter plot for multi-dimensional analysis
-                        st.markdown("### 🌐 3D Data Exploration")
-                        st.markdown("""
-                        The 3D scatter plot below allows you to explore the relationships between 
-                        three different variables simultaneously. You can rotate, zoom, and pan the 
-                        visualization to gain deeper insights into the data.
-                        """)
-                        
-                        # Check if we have the required columns for 3D scatter plot
-                        if all(col in filtered_df.columns for col in ['age', 'grades_count', 'avg_grade', 'gender']):
-                            # Create 3D scatter plot
-                            fig_3d = px.scatter_3d(
-                                filtered_df,
-                                x='age',
-                                y='grades_count',
-                                z='avg_grade',
-                                color='gender',
-                                size='avg_grade',
-                                hover_data=['student_name', 'class_name', 'location_type'],
-                                title='3D View: Age, Number of Grades, and Average Grade by Gender',
-                                color_discrete_map={'Male': '#1f77b4', 'Female': '#ff7f0e'},
-                                opacity=0.8,
-                                height=700
-                            )
-                            
-                            # Update marker appearance
-                            fig_3d.update_traces(
-                                marker=dict(
-                                    size=5,
-                                    line=dict(width=0.5, color='DarkSlateGrey'),
-                                    sizemode='diameter',
-                                    sizeref=0.1
-                                ),
-                                selector=dict(mode='markers')
-                            )
-                            
-                            # Update layout
-                            fig_3d.update_layout(
-                                scene=dict(
-                                    xaxis_title='Age',
-                                    yaxis_title='Number of Grades',
-                                    zaxis_title='Average Grade',
-                                    xaxis=dict(backgroundcolor='rgba(0,0,0,0)'),
-                                    yaxis=dict(backgroundcolor='rgba(0,0,0,0)'),
-                                    zaxis=dict(backgroundcolor='rgba(0,0,0,0)'),
-                                ),
-                                margin=dict(l=0, r=0, b=0, t=40),
-                                legend_title_text='Gender',
-                                scene_camera=dict(
-                                    eye=dict(x=1.5, y=1.5, z=1.5)
-                                )
-                            )
-                            
-                            st.plotly_chart(fig_3d, use_container_width=True)
-                            
-                            # Add animation controls
-                            st.markdown("#### Animation Controls")
-                            st.markdown("""
-                            - **Rotate**: Click and drag to rotate the view
-                            - **Zoom**: Use your mouse wheel or pinch to zoom in/out
-                            - **Pan**: Right-click and drag to pan the view
-                            - **Reset**: Double-click to reset the view
-                            """)
-                            
-                            # Add a radar chart for multi-variable comparison
-                            st.markdown("### 📊 Multi-Variable Comparison")
-                            st.markdown("""
-                            The radar chart below allows you to compare multiple variables across 
-                            different categories. Each axis represents a different metric, and the 
-                            shape formed by connecting the points shows the profile of each category.
-                            """)
-                            
-                            # Check if we have the required columns for radar chart
-                            if all(col in filtered_df.columns for col in ['gender', 'location_type', 'age_group', 'avg_grade', 'grades_count']):
-                                # Calculate summary statistics for radar chart
-                                radar_df = filtered_df.groupby(['gender', 'location_type']).agg({
-                                    'avg_grade': 'mean',
-                                    'grades_count': 'mean',
-                                    'age': 'mean'
-                                }).reset_index()
-                                
-                                # Normalize the data for better visualization
-                                for col in ['avg_grade', 'grades_count', 'age']:
-                                    min_val = radar_df[col].min()
-                                    max_val = radar_df[col].max()
-                                    radar_df[f'{col}_norm'] = (radar_df[col] - min_val) / (max_val - min_val) * 100
-                                
-                                # Create radar chart
-                                fig_radar = go.Figure()
-                                
-                                # Add a trace for each group
-                                for idx, row in radar_df.iterrows():
-                                    fig_radar.add_trace(go.Scatterpolar(
-                                        r=[
-                                            row['avg_grade_norm'],
-                                            row['grades_count_norm'],
-                                            row['age_norm'],
-                                            row['avg_grade_norm']  # Close the shape
-                                        ],
-                                        theta=['Average Grade', 'Number of Grades', 'Age', 'Average Grade'],
-                                        name=f"{row['gender']} - {row['location_type']}",
-                                        line=dict(color=px.colors.qualitative.Plotly[idx % len(px.colors.qualitative.Plotly)]),
-                                        fill='toself',
-                                        hovertemplate=
-                                            f"<b>{row['gender']} - {row['location_type']}</b><br>" +
-                                            f"Avg Grade: {row['avg_grade']:.1f}<br>" +
-                                            f"Grades Count: {row['grades_count']:.1f}<br>" +
-                                            f"Avg Age: {row['age']:.1f}<extra></extra>"
-                                    ))
-                                
-                                # Update layout
-                                fig_radar.update_layout(
-                                    polar=dict(
-                                        radialaxis=dict(
-                                            visible=True,
-                                            range=[0, 100],
-                                            showticklabels=True,
-                                            ticks='',
-                                            showline=False,
-                                            showgrid=True
-                                        )
-                                    ),
-                                    showlegend=True,
-                                    title='Multi-Variable Comparison by Gender and Location',
-                                    height=600,
-                                    margin=dict(t=50, b=50, l=50, r=50),
-                                    legend=dict(
-                                        orientation='h',
-                                        yanchor='bottom',
-                                        y=1.02,
-                                        xanchor='center',
-                                        x=0.5
-                                    )
-                                )
-                                
-                                st.plotly_chart(fig_radar, use_container_width=True)
-                                
-                                # Add interpretation
-                                with st.expander("🔍 How to interpret this radar chart"):
-                                    st.markdown("""
-                                    - **Each axis** represents a different metric (normalized to 0-100 scale)
-                                    - **Each colored shape** represents a demographic group
-                                    - **Larger area** indicates higher values across multiple metrics
-                                    - **Shape symmetry** shows balance between different metrics
-                                    - **Outer ring** represents the maximum value (100) for each metric
-                                    - **Center** represents the minimum value (0) for each metric
-                                    """)
-                                    
-                                    # Add a treemap for hierarchical data visualization
-                                    st.markdown("### 🌳 Hierarchical Data Overview")
-                                    st.markdown("""
-                                    The treemap below provides a hierarchical view of the student population, 
-                                    allowing you to explore the distribution of students across different 
-                                    demographic categories at a glance.
-                                    """)
-                                    
-                                    # Check if we have the required columns for treemap
-                                    if all(col in filtered_df.columns for col in ['gender', 'location_type', 'age_group', 'class_name']):
-                                        # Create a hierarchical dataframe
-                                        treemap_df = filtered_df.groupby(
-                                            ['gender', 'location_type', 'age_group', 'class_name']
-                                        ).size().reset_index(name='count')
-                                        
-                                        # Create treemap
-                                        fig_treemap = px.treemap(
-                                            treemap_df,
-                                            path=['gender', 'location_type', 'age_group', 'class_name'],
-                                            values='count',
-                                            color='count',
-                                            color_continuous_scale='Viridis',
-                                            title='Student Population Distribution',
-                                            height=800
-                                        )
-                                        
-                                        # Update layout
-                                        fig_treemap.update_traces(
-                                            textinfo='label+value+percent parent',
-                                            hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percentParent:.1%} of parent',
-                                            marker=dict(line=dict(color='#ffffff', width=0.5))
-                                        )
-                                        
-                                        fig_treemap.update_layout(
-                                            margin=dict(t=40, b=0, l=0, r=0),
-                                            coloraxis_colorbar=dict(
-                                                title='Count',
-                                                thicknessmode='pixels',
-                                                thickness=20,
-                                                lenmode='pixels',
-                                                len=300,
-                                                yanchor='top',
-                                                y=1,
-                                                xanchor='left',
-                                                x=1.02
-                                            )
-                                        )
-                                        
-                                        st.plotly_chart(fig_treemap, use_container_width=True)
-                                        
-                                        # Add interpretation
-                                        with st.expander("🔍 How to interpret this treemap"):
-                                            st.markdown("""
-                                            - **Size of rectangles** represents the number of students in each category
-                                            - **Color intensity** also represents the count (darker = more students)
-                                            - **Hierarchy** is shown from left to right (Gender → Location → Age Group → Class)
-                                            - **Click on a category** to drill down into subcategories
-                                            - **Double-click** to go back up one level
-                                            - **Hover** over any rectangle to see detailed information
-                                            - **Use the color scale** to quickly identify larger/smaller groups
-                                            """)
+            selected_district = "All"
+
+    # School filters
+    with st.sidebar.expander("🏫 School", expanded=False):
+        # School type filter
+        if "school_type" in df.columns:
+            school_type_options = ["All"] + sorted(df["school_type"].dropna().unique().tolist())
+            selected_school_type = st.selectbox("School Type", school_type_options, index=0, help="Filter by school type")
         else:
-            st.info("Insufficient data for interactive cross-filtering. Please check your filters.")
-        
-        # Add correlation heatmap section
-        st.markdown("### 🔍 Correlation Analysis")
-        st.markdown("""
-        The correlation heatmap below shows the strength and direction of relationships between 
-        different numeric variables in the dataset. This can help identify potential patterns 
-        and relationships worth investigating further.
-        """)
-        
-        numeric_cols = filtered_df.select_dtypes(include=[np.number]).columns.tolist()
-        if len(numeric_cols) > 1 and not filtered_df.empty:
-            # Calculate correlation matrix
-            corr = filtered_df[numeric_cols].corr()
-            
-            # Create a mask for the upper triangle
-            mask = np.triu(np.ones_like(corr, dtype=bool))
-            
-            # Create heatmap with masked upper triangle
-            fig_corr = px.imshow(
-                corr.mask(mask),
-                text_auto=True,
-                aspect="auto",
-                color_continuous_scale='RdBu_r',
-                title='Correlation Heatmap (Lower Triangle)',
-                labels=dict(color="Correlation"),
-                zmin=-1,
-                zmax=1
-            )
-            
-            # Add correlation values as annotations
-            for i in range(len(corr)):
-                for j in range(len(corr)):
-                    if i > j:  # Only show lower triangle
-                        fig_corr.add_annotation(
-                            x=corr.columns[i],
-                            y=corr.columns[j],
-                            text=f"{corr.iloc[j, i]:.2f}",
-                            showarrow=False,
-                            font=dict(color='black' if abs(corr.iloc[j, i]) < 0.7 else 'white')
-                        )
-            
-            fig_corr.update_layout(
-                height=700,
-                margin=dict(t=100, b=100, l=100, r=50),
-                coloraxis_colorbar=dict(
-                    title="Correlation",
-                    thicknessmode="pixels", thickness=20,
-                    lenmode="pixels", len=300,
-                    yanchor="top", y=1,
-                    ticks="outside"
-                )
-            )
-            
-            st.plotly_chart(fig_corr, use_container_width=True)
-            
-            # Add interpretation and insights
-            with st.expander("🔍 How to interpret correlation analysis"):
-                st.markdown("""
-                #### Correlation Coefficient Interpretation
-                - **+1.0**: Perfect positive correlation
-                - **+0.7 to +0.9**: Strong positive correlation
-                - **+0.4 to +0.6**: Moderate positive correlation
-                - **+0.1 to +0.3**: Weak positive correlation
-                - **0**: No correlation
-                - **-0.1 to -0.3**: Weak negative correlation
-                - **-0.4 to -0.6**: Moderate negative correlation
-                - **-0.7 to -0.9**: Strong negative correlation
-                - **-1.0**: Perfect negative correlation
-                
-                #### Key Insights to Look For:
-                1. **Strong Correlations (|r| > 0.7)**: May indicate important relationships worth investigating
-                2. **Unexpected Correlations**: Look for relationships you didn't anticipate
-                3. **No Correlation**: Some variables that you expected to be related might not be
-                4. **Negative Correlations**: Inverse relationships can be as important as positive ones
-                
-                #### Caveats:
-                - Correlation does not imply causation
-                - Only measures linear relationships
-                - Sensitive to outliers
-                - Can be influenced by range restriction
-                """)
-        
-        # Display location-based visualization if available
-        if 'fig_loc' in locals():
-            st.plotly_chart(fig_loc, use_container_width=True)
-    
-    # Performance by grade level
-    if 'grade_level' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-        st.markdown("### Performance by Grade Level")
-        grade_perf = filtered_df.groupby('grade_level', as_index=False).agg(
-            avg_grade=('avg_grade', 'mean'),
-            count=('student_id', 'count')
-        ).sort_values('grade_level')
-        
-        fig_grade = px.line(
-            grade_perf,
-            x='grade_level',
-            y='avg_grade',
-            markers=True,
-            title='Average Grade by Grade Level',
-            labels={'grade_level': 'Grade Level', 'avg_grade': 'Average Grade'}
-        )
-        fig_grade.update_traces(
-            line=dict(width=4),
-            marker=dict(size=10, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate='<b>Grade %{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-            customdata=grade_perf[['count']]
-        )
-        fig_grade.update_layout(
-            xaxis_title="Grade Level",
-            yaxis_title="Average Grade",
-            height=450,
-            xaxis=dict(tickmode='linear')
-        )
-        st.plotly_chart(fig_grade, use_container_width=True)
-        
-        # Add a scatter plot with trend line
-        fig_scatter = px.scatter(
-            filtered_df,
-            x='grade_level',
-            y='avg_grade',
-            color='gender' if 'gender' in filtered_df.columns else None,
-            trendline="lowess",
-            title='Grade Distribution by Grade Level',
-            labels={'grade_level': 'Grade Level', 'avg_grade': 'Average Grade'},
-            hover_data=['student_name', 'class_name']
-        )
-        fig_scatter.update_layout(
-            xaxis_title="Grade Level",
-            yaxis_title="Average Grade",
-            height=500,
-            xaxis=dict(tickmode='linear')
-        )
-        st.plotly_chart(fig_scatter, use_container_width=True)
+            selected_school_type = "All"
 
-def display_performance_analysis(filtered_df):
-    """
-    Display performance analysis visualizations.
-    
-    Args:
-        filtered_df (pd.DataFrame): The filtered DataFrame containing student data
-    """
-    if filtered_df.empty:
-        st.warning("No data available for the selected filters.")
-        return
-    
-    # Performance by gender
-    if 'gender' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-        st.markdown("### Performance by Gender")
-        gender_perf = filtered_df.groupby('gender', as_index=False).agg(
-            avg_grade=('avg_grade', 'mean'),
-            count=('student_id', 'count')
-        )
-        
-        fig_gender = px.bar(
-            gender_perf,
-            x='gender',
-            y='avg_grade',
-            color='gender',
-            text_auto='.1f',
-            title='Average Grade by Gender',
-            labels={'gender': 'Gender', 'avg_grade': 'Average Grade'},
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig_gender.update_traces(
-            textposition='outside',
-            hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-            customdata=gender_perf[['count']]
-        )
-        fig_gender.update_layout(
-            xaxis_title="Gender",
-            yaxis_title="Average Grade",
-            showlegend=False,
-            height=450
-        )
-        st.plotly_chart(fig_gender, use_container_width=True)
-    
-    # Performance by age group
-    if 'age_group' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-        st.markdown("### Performance by Age Group")
-        age_perf = filtered_df.groupby('age_group', as_index=False).agg(
-            avg_grade=('avg_grade', 'mean'),
-            count=('student_id', 'count')
-        ).sort_values('age_group')
-        
-        fig_age = px.bar(
-            age_perf,
-            x='age_group',
-            y='avg_grade',
-            color='age_group',
-            text_auto='.1f',
-            title='Average Grade by Age Group',
-            labels={'age_group': 'Age Group', 'avg_grade': 'Average Grade'},
-            color_discrete_sequence=px.colors.sequential.Viridis
-        )
-        fig_age.update_traces(
-            textposition='outside',
-            hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-            customdata=age_perf[['count']]
-        )
-        fig_age.update_layout(
-            xaxis_title="Age Group",
-            yaxis_title="Average Grade",
-            showlegend=False,
-            height=450,
-            xaxis=dict(tickangle=-45)
-        )
-        st.plotly_chart(fig_age, use_container_width=True)
-    
-    # Performance by location
-    if 'location_type' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-        st.markdown("### Performance by Location")
-        loc_perf = filtered_df.groupby('location_type', as_index=False).agg(
-            avg_grade=('avg_grade', 'mean'),
-            count=('student_id', 'count')
-        )
-        
-        fig_loc = px.bar(
-            loc_perf,
-            x='location_type',
-            y='avg_grade',
-            color='location_type',
-            text_auto='.1f',
-            title='Average Grade by Location Type',
-            labels={'location_type': 'Location Type', 'avg_grade': 'Average Grade'},
-            color_discrete_map={'Urban': '#636EFA', 'Rural': '#EF553B'}
-        )
-        fig_loc.update_traces(
-            textposition='outside',
-            hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-            customdata=loc_perf[['count']],
-            marker_line_color='rgb(8,48,107)',
-            marker_line_width=1.5,
-            opacity=0.9
-        )
-        fig_loc.update_layout(
-            xaxis_title="Location Type",
-            yaxis_title="Average Grade",
-            showlegend=False,
-            height=450
-        )
-        st.plotly_chart(fig_loc, use_container_width=True)
-    
-    # Performance by grade level
-    if 'grade_level' in filtered_df.columns and 'avg_grade' in filtered_df.columns:
-        st.markdown("### Performance by Grade Level")
-        grade_perf = filtered_df.groupby('grade_level', as_index=False).agg(
-            avg_grade=('avg_grade', 'mean'),
-            count=('student_id', 'count')
-        ).sort_values('grade_level')
-        
-        fig_grade = px.line(
-            grade_perf,
-            x='grade_level',
-            y='avg_grade',
-            markers=True,
-            title='Average Grade by Grade Level',
-            labels={'grade_level': 'Grade Level', 'avg_grade': 'Average Grade'}
-        )
-        fig_grade.update_traces(
-            line=dict(width=4),
-            marker=dict(size=10, line=dict(width=2, color='DarkSlateGrey')),
-            hovertemplate='<b>Grade %{x}</b><br>Avg Grade: %{y:.1f}<br>Students: %{customdata[0]}<extra></extra>',
-            customdata=grade_perf[['count']]
-        )
-        fig_grade.update_layout(
-            xaxis_title="Grade Level",
-            yaxis_title="Average Grade",
-            height=450,
-            xaxis=dict(tickmode='linear')
-        )
-        st.plotly_chart(fig_grade, use_container_width=True)
-        
-        # Add a scatter plot with trend line
-        if 'gender' in filtered_df.columns and 'class_name' in filtered_df.columns:
-            fig_scatter = px.scatter(
-                filtered_df,
-                x='grade_level',
-                y='avg_grade',
-                color='gender',
-                trendline="lowess",
-                title='Grade Distribution by Grade Level',
-                labels={'grade_level': 'Grade Level', 'avg_grade': 'Average Grade'},
-                hover_data=['student_name', 'class_name']
+        # School category filter
+        if "school_category" in df.columns:
+            school_category_options = ["All"] + sorted(df["school_category"].dropna().unique().tolist())
+            selected_school_category = st.selectbox(
+                "School Category", school_category_options, index=0, help="Filter by school category"
             )
-            fig_scatter.update_layout(
-                xaxis_title="Grade Level",
-                yaxis_title="Average Grade",
-                height=500,
-                xaxis=dict(tickmode='linear')
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-        # Add a box plot for grade distribution by grade level
-        if 'gender' in filtered_df.columns:
-            fig_box = px.box(
-                filtered_df,
-                x='grade_level',
-                y='avg_grade',
-                color='gender',
-                title='Grade Distribution by Grade Level and Gender',
-                labels={'grade_level': 'Grade Level', 'avg_grade': 'Average Grade', 'gender': 'Gender'},
-                color_discrete_map={'Male': '#1f77b4', 'Female': '#ff7f0e'}
-            )
-            fig_box.update_layout(
-                xaxis_title="Grade Level",
-                yaxis_title="Average Grade",
-                height=500,
-                xaxis=dict(tickmode='linear'),
-                boxmode='group'
-            )
-            st.plotly_chart(fig_box, use_container_width=True)
-    
-    # Performance by subject (if subject performance data is available)
-    if 'subject_performance' in globals() and callable(subject_performance):
-        st.markdown("### Performance by Subject")
-        subject_df = subject_performance()
-        
-        if not subject_df.empty:
-            subject_avg = subject_df.groupby('subject_name')['avg_grade'].mean().reset_index()
-            
-            fig_subject = px.bar(
-                subject_avg,
-                x='subject_name',
-                y='avg_grade',
-                title='Average Grade by Subject',
-                labels={'subject_name': 'Subject', 'avg_grade': 'Average Grade'},
-                color='subject_name',
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_subject.update_traces(
-                texttemplate='%{y:.1f}',
-                textposition='outside',
-                hovertemplate='<b>%{x}</b><br>Avg Grade: %{y:.1f}<extra></extra>'
-            )
-            fig_subject.update_layout(
-                xaxis_title="Subject",
-                yaxis_title="Average Grade",
-                showlegend=False,
-                height=450
-            )
-            st.plotly_chart(fig_subject, use_container_width=True)
-            
-            # Subject performance heatmap
-            if 'student_id' in subject_df.columns and 'subject_name' in subject_df.columns:
-                heatmap_data = subject_df.pivot(
-                    index='student_id',
-                    columns='subject_name',
-                    values='avg_grade'
-                )
-                
-                if not heatmap_data.empty:
-                    fig_heatmap = px.imshow(
-                        heatmap_data.corr(),
-                        text_auto=True,
-                        aspect="auto",
-                        color_continuous_scale='RdBu',
-                        title='Subject Performance Correlation',
-                        labels=dict(x="Subject", y="Subject", color="Correlation")
-                    )
-                    fig_heatmap.update_layout(
-                        height=600,
-                        xaxis_showgrid=False,
-                        yaxis_showgrid=False,
-                        xaxis_zeroline=False,
-                        yaxis_zeroline=False,
-                        plot_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(fig_heatmap, use_container_width=True)
+        else:
+            selected_school_category = "All"
 
-def display_data_export(filtered_df):
-    """Add data export functionality."""
-    st.subheader("📥 Export Data")
-    
-    if filtered_df.empty:
-        st.warning("No data available for export with current filters.")
-        return
-    
-    # Show filtered data
-    st.dataframe(
-        filtered_df[[
-            'student_id', 'student_name', 'gender', 'age', 'age_group', 
-            'location_type', 'class_name', 'avg_grade'
-        ]].sort_values('avg_grade', ascending=False),
-        use_container_width=True,
-        height=300
-    )
-    
+    # Performance filters
+    with st.sidebar.expander("📊 Performance", expanded=False):
+        # Performance category filter
+        if "performance_category" in df.columns:
+            performance_options = ["All"] + sorted(df["performance_category"].dropna().unique().tolist())
+            selected_performance = st.selectbox(
+                "Performance Category", performance_options, index=0, help="Filter by performance category"
+            )
+        else:
+            selected_performance = "All"
+
+        # Scholarship filter
+        if "is_scholarship_recipient" in df.columns:
+            scholarship_options = ["All", "Yes", "No"]
+            selected_scholarship = st.selectbox(
+                "Scholarship Recipients", scholarship_options, index=0, help="Filter by scholarship status"
+            )
+        else:
+            selected_scholarship = "All"
+
+        # Special needs filter
+        if "is_special_needs" in df.columns:
+            special_needs_options = ["All", "Yes", "No"]
+            selected_special_needs = st.selectbox(
+                "Special Needs", special_needs_options, index=0, help="Filter by special needs status"
+            )
+        else:
+            selected_special_needs = "All"
+
+    # Display options
+    with st.sidebar.expander("⚙️ Display Options", expanded=False):
+        show_percentages = st.checkbox("Show Percentages in Charts", value=True)
+        chart_height = st.slider("Chart Height", min_value=300, max_value=800, value=500, step=50)
+        color_scheme = st.selectbox("Color Scheme", ["plotly", "viridis", "plasma", "inferno", "magma", "cividis"], index=0)
+
     # Export options
-    export_format = st.selectbox(
-        "Export Format",
-        ["CSV", "Excel"]
-    )
-    
-    if st.button("Export Data"):
-        if export_format == "CSV":
-            csv = filtered_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="demographic_insights.csv",
-                mime="text/csv"
-            )
-        else:  # Excel
-            excel = filtered_df.to_excel("demographic_insights.xlsx", index=False)
-            with open("demographic_insights.xlsx", "rb") as f:
-                st.download_button(
-                    label="Download Excel",
-                    data=f,
-                    file_name="demographic_insights.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    with st.sidebar.expander("📤 Export", expanded=False):
+        if st.button("📊 Export Current View as CSV"):
+            # This would be implemented to export the filtered data
+            st.info("Export functionality would be implemented here")
+
+        if st.button("📈 Generate Report"):
+            st.info("Report generation would be implemented here")
+
+    # Return all filter values
+    return {
+        "date_range": (start_date, end_date) if start_date and end_date else None,
+        "classes": selected_classes,
+        "section": selected_section,
+        "gender": selected_gender,
+        "age_group": selected_age_group,
+        "income": selected_income,
+        "division": selected_division,
+        "district": selected_district,
+        "school_type": selected_school_type,
+        "school_category": selected_school_category,
+        "performance": selected_performance,
+        "scholarship": selected_scholarship,
+        "special_needs": selected_special_needs,
+        "show_percentages": show_percentages,
+        "chart_height": chart_height,
+        "color_scheme": color_scheme,
+    }
+
+
+def apply_filters(df, filters):
+    """Apply all selected filters to the dataframe."""
+    filtered_df = df.copy()
+
+    # Date range filter
+    if filters["date_range"] and "enrollment_date" in filtered_df.columns:
+        start_date, end_date = filters["date_range"]
+        filtered_df = filtered_df[
+            (filtered_df["enrollment_date"].dt.date >= start_date) & (filtered_df["enrollment_date"].dt.date <= end_date)
+        ]
+
+    # Class filter
+    if filters["classes"] and "current_class" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["current_class"].isin(filters["classes"])]
+
+    # Section filter
+    if filters["section"] != "All" and "current_section" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["current_section"] == filters["section"]]
+
+    # Gender filter
+    if filters["gender"] != "All" and "gender" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["gender"] == filters["gender"]]
+
+    # Age group filter
+    if filters["age_group"] != "All" and "age_group" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["age_group"] == filters["age_group"]]
+
+    # Income filter
+    if filters["income"] != "All" and "income_category" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["income_category"] == filters["income"]]
+
+    # Division filter
+    if filters["division"] != "All" and "division" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["division"] == filters["division"]]
+
+    # District filter
+    if filters["district"] != "All" and "district" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["district"] == filters["district"]]
+
+    # School type filter
+    if filters["school_type"] != "All" and "school_type" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["school_type"] == filters["school_type"]]
+
+    # School category filter
+    if filters["school_category"] != "All" and "school_category" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["school_category"] == filters["school_category"]]
+
+    # Performance filter
+    if filters["performance"] != "All" and "performance_category" in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df["performance_category"] == filters["performance"]]
+
+    # Scholarship filter
+    if filters["scholarship"] != "All" and "is_scholarship_recipient" in filtered_df.columns:
+        scholarship_value = filters["scholarship"] == "Yes"
+        filtered_df = filtered_df[filtered_df["is_scholarship_recipient"] == scholarship_value]
+
+    # Special needs filter
+    if filters["special_needs"] != "All" and "is_special_needs" in filtered_df.columns:
+        special_needs_value = filters["special_needs"] == "Yes"
+        filtered_df = filtered_df[filtered_df["is_special_needs"] == special_needs_value]
+
+    return filtered_df
+
+
+def display_key_metrics(df):
+    """Display key demographic metrics in an attractive layout."""
+    st.markdown("### 📊 Key Demographics Overview")
+
+    # Create columns for metrics
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        total_students = len(df)
+        st.markdown(
+            f"""
+        <div class="highlight-metric">
+            <h3 style="margin: 0; font-size: 2rem;">👥</h3>
+            <h2 style="margin: 0;">{total_students:,}</h2>
+            <p style="margin: 0; opacity: 0.8;">Total Students</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        if "gender" in df.columns:
+            gender_dist = df["gender"].value_counts()
+            if len(gender_dist) >= 2:
+                female_pct = (gender_dist.get("Female", 0) / total_students * 100) if total_students > 0 else 0
+                st.markdown(
+                    f"""
+                <div class="highlight-metric">
+                    <h3 style="margin: 0; font-size: 2rem;">♀️</h3>
+                    <h2 style="margin: 0;">{female_pct:.1f}%</h2>
+                    <p style="margin: 0; opacity: 0.8;">Female Students</p>
+                </div>
+                """,
+                    unsafe_allow_html=True,
                 )
+            else:
+                st.markdown(
+                    f"""
+                <div class="highlight-metric">
+                    <h3 style="margin: 0; font-size: 2rem;">♀️</h3>
+                    <h2 style="margin: 0;">N/A</h2>
+                    <p style="margin: 0; opacity: 0.8;">Female Students</p>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">♀️</h3>
+                <h2 style="margin: 0;">N/A</h2>
+                <p style="margin: 0; opacity: 0.8;">Female Students</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    with col3:
+        if "avg_grade" in df.columns:
+            avg_performance = df["avg_grade"].mean()
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">📈</h3>
+                <h2 style="margin: 0;">{avg_performance:.1f}%</h2>
+                <p style="margin: 0; opacity: 0.8;">Avg Performance</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">📈</h3>
+                <h2 style="margin: 0;">N/A</h2>
+                <p style="margin: 0; opacity: 0.8;">Avg Performance</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    with col4:
+        if "is_scholarship_recipient" in df.columns:
+            scholarship_pct = (df["is_scholarship_recipient"].sum() / total_students * 100) if total_students > 0 else 0
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">🎓</h3>
+                <h2 style="margin: 0;">{scholarship_pct:.1f}%</h2>
+                <p style="margin: 0; opacity: 0.8;">Scholarship Recipients</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">🎓</h3>
+                <h2 style="margin: 0;">N/A</h2>
+                <p style="margin: 0; opacity: 0.8;">Scholarship Recipients</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    with col5:
+        if "division" in df.columns:
+            divisions_count = df["division"].nunique()
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">🌍</h3>
+                <h2 style="margin: 0;">{divisions_count}</h2>
+                <p style="margin: 0; opacity: 0.8;">Divisions</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+            <div class="highlight-metric">
+                <h3 style="margin: 0; font-size: 2rem;">🌍</h3>
+                <h2 style="margin: 0;">N/A</h2>
+                <p style="margin: 0; opacity: 0.8;">Divisions</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+
+def create_demographic_charts(df, filters):
+    """Create comprehensive demographic analysis charts."""
+
+    # Gender Distribution
+    if "gender" in df.columns and not df["gender"].isna().all():
+        st.markdown("#### 👫 Gender Distribution")
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            gender_counts = df["gender"].value_counts()
+            fig_gender = px.pie(
+                values=gender_counts.values,
+                names=gender_counts.index,
+                title="Student Distribution by Gender",
+                color_discrete_sequence=px.colors.qualitative.Set3,
+                height=filters["chart_height"] // 2,
+            )
+            fig_gender.update_traces(textposition="inside", textinfo="percent+label")
+            st.plotly_chart(fig_gender, use_container_width=True)
+
+        with col2:
+            st.markdown("**Gender Statistics:**")
+            for gender, count in gender_counts.items():
+                percentage = (count / len(df)) * 100
+                st.markdown(f"- **{gender}**: {count:,} ({percentage:.1f}%)")
+
+    # Age Distribution
+    if "age_group" in df.columns and not df["age_group"].isna().all():
+        st.markdown("#### 🎂 Age Group Distribution")
+        age_counts = df["age_group"].value_counts().sort_index()
+
+        fig_age = px.bar(
+            x=age_counts.index,
+            y=age_counts.values,
+            title="Student Distribution by Age Group",
+            labels={"x": "Age Group", "y": "Number of Students"},
+            color=age_counts.values,
+            color_continuous_scale=filters["color_scheme"],
+            height=filters["chart_height"] // 2,
+        )
+        fig_age.update_layout(showlegend=False)
+        st.plotly_chart(fig_age, use_container_width=True)
+
+    # Income Distribution
+    if "income_category" in df.columns and not df["income_category"].isna().all():
+        st.markdown("#### 💰 Family Income Distribution")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            income_counts = df["income_category"].value_counts()
+            fig_income = px.pie(
+                values=income_counts.values,
+                names=income_counts.index,
+                title="Distribution by Family Income Category",
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+                height=filters["chart_height"] // 2,
+            )
+            st.plotly_chart(fig_income, use_container_width=True)
+
+        with col2:
+            # Income vs Performance analysis
+            if "avg_grade" in df.columns:
+                income_performance = df.groupby("income_category")["avg_grade"].mean().reset_index()
+                fig_income_perf = px.bar(
+                    income_performance,
+                    x="income_category",
+                    y="avg_grade",
+                    title="Average Performance by Income Category",
+                    labels={"income_category": "Income Category", "avg_grade": "Average Grade (%)"},
+                    color="avg_grade",
+                    color_continuous_scale="Viridis",
+                    height=filters["chart_height"] // 2,
+                )
+                st.plotly_chart(fig_income_perf, use_container_width=True)
+
+
+def create_geographic_analysis(df, filters):
+    """Create geographic distribution analysis."""
+    st.markdown("### 🌍 Geographic Distribution Analysis")
+
+    # Division-wise distribution
+    if "division" in df.columns and not df["division"].isna().all():
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### 📍 Distribution by Division")
+            division_counts = df["division"].value_counts()
+
+            fig_division = px.bar(
+                x=division_counts.values,
+                y=division_counts.index,
+                orientation="h",
+                title="Student Count by Division",
+                labels={"x": "Number of Students", "y": "Division"},
+                color=division_counts.values,
+                color_continuous_scale=filters["color_scheme"],
+                height=filters["chart_height"],
+            )
+            st.plotly_chart(fig_division, use_container_width=True)
+
+        with col2:
+            # Performance by division
+            if "avg_grade" in df.columns:
+                st.markdown("#### 📊 Performance by Division")
+                division_performance = df.groupby("division").agg({"avg_grade": "mean", "student_id": "count"}).reset_index()
+                division_performance.columns = ["Division", "Avg_Performance", "Student_Count"]
+
+                fig_div_perf = px.scatter(
+                    division_performance,
+                    x="Student_Count",
+                    y="Avg_Performance",
+                    size="Student_Count",
+                    color="Avg_Performance",
+                    hover_name="Division",
+                    title="Division Performance vs Student Count",
+                    labels={"Student_Count": "Number of Students", "Avg_Performance": "Average Performance (%)"},
+                    color_continuous_scale="RdYlGn",
+                    height=filters["chart_height"],
+                )
+                st.plotly_chart(fig_div_perf, use_container_width=True)
+
+
+def create_performance_analysis(df, filters):
+    """Create performance-related demographic analysis."""
+    st.markdown("### 📈 Performance Analysis by Demographics")
+
+    if "avg_grade" in df.columns and "gender" in df.columns:
+        # Gender vs Performance
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### 👫 Performance by Gender")
+            fig_gender_perf = px.box(
+                df,
+                x="gender",
+                y="avg_grade",
+                title="Performance Distribution by Gender",
+                labels={"gender": "Gender", "avg_grade": "Average Grade (%)"},
+                color="gender",
+                height=filters["chart_height"] // 1.5,
+            )
+            st.plotly_chart(fig_gender_perf, use_container_width=True)
+
+        with col2:
+            # Age group vs Performance
+            if "age_group" in df.columns:
+                st.markdown("#### 🎂 Performance by Age Group")
+                fig_age_perf = px.violin(
+                    df,
+                    x="age_group",
+                    y="avg_grade",
+                    title="Performance Distribution by Age Group",
+                    labels={"age_group": "Age Group", "avg_grade": "Average Grade (%)"},
+                    color="age_group",
+                    height=filters["chart_height"] // 1.5,
+                )
+                st.plotly_chart(fig_age_perf, use_container_width=True)
+
+    # Performance categories distribution
+    if "performance_category" in df.columns:
+        st.markdown("#### 🏆 Performance Categories Distribution")
+        perf_counts = df["performance_category"].value_counts()
+
+        fig_perf_cat = px.bar(
+            x=perf_counts.index,
+            y=perf_counts.values,
+            title="Distribution of Performance Categories",
+            labels={"x": "Performance Category", "y": "Number of Students"},
+            color=perf_counts.values,
+            color_continuous_scale="RdYlGn",
+            height=filters["chart_height"] // 2,
+        )
+        st.plotly_chart(fig_perf_cat, use_container_width=True)
+
+
+def create_correlation_analysis(df, filters):
+    """Create correlation analysis between different demographic factors."""
+    st.markdown("### 🔗 Correlation Analysis")
+
+    # Create correlation matrix for numerical columns
+    numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    if len(numerical_cols) > 1:
+        correlation_matrix = df[numerical_cols].corr()
+
+        fig_corr = px.imshow(
+            correlation_matrix,
+            title="Correlation Matrix of Numerical Variables",
+            color_continuous_scale="RdBu",
+            aspect="auto",
+            height=filters["chart_height"],
+        )
+        fig_corr.update_layout(xaxis_title="Variables", yaxis_title="Variables")
+        st.plotly_chart(fig_corr, use_container_width=True)
+
+        # Insights from correlation
+        st.markdown("#### 💡 Key Insights from Correlation Analysis")
+
+        # Find strongest correlations
+        corr_pairs = []
+        for i in range(len(correlation_matrix.columns)):
+            for j in range(i + 1, len(correlation_matrix.columns)):
+                corr_value = correlation_matrix.iloc[i, j]
+                if abs(corr_value) > 0.3:  # Only show correlations > 0.3
+                    corr_pairs.append(
+                        {
+                            "var1": correlation_matrix.columns[i],
+                            "var2": correlation_matrix.columns[j],
+                            "correlation": corr_value,
+                        }
+                    )
+
+        if corr_pairs:
+            corr_df = pd.DataFrame(corr_pairs)
+            corr_df = corr_df.sort_values("correlation", key=abs, ascending=False)
+
+            for _, row in corr_df.head(5).iterrows():
+                correlation_strength = "Strong" if abs(row["correlation"]) > 0.7 else "Moderate"
+                correlation_direction = "positive" if row["correlation"] > 0 else "negative"
+
+                st.markdown(
+                    f"""
+                <div class="insight-box">
+                    <strong>{correlation_strength} {correlation_direction} correlation</strong> between
+                    <em>{row['var1']}</em> and <em>{row['var2']}</em>
+                    (r = {row['correlation']:.3f})
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+
+def create_detailed_data_table(df):
+    """Create a detailed data table with search and filter capabilities."""
+    st.markdown("### 📋 Detailed Student Data")
+
+    # Select relevant columns for display
+    display_columns = [
+        "student_name",
+        "gender",
+        "age",
+        "current_class",
+        "division",
+        "district",
+        "school_name",
+        "school_type",
+        "avg_grade",
+        "performance_category",
+        "is_scholarship_recipient",
+    ]
+
+    # Filter columns that exist in the dataframe
+    available_columns = [col for col in display_columns if col in df.columns]
+
+    if available_columns:
+        display_df = df[available_columns].copy()
+
+        # Format boolean columns
+        bool_columns = ["is_scholarship_recipient", "is_special_needs"]
+        for col in bool_columns:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].map({True: "Yes", False: "No"})
+
+        # Add search functionality
+        search_term = st.text_input("🔍 Search students:", placeholder="Enter student name, school, or division...")
+
+        if search_term:
+            # Search across text columns
+            text_columns = display_df.select_dtypes(include=["object"]).columns
+            mask = (
+                display_df[text_columns]
+                .apply(lambda x: x.astype(str).str.contains(search_term, case=False, na=False))
+                .any(axis=1)
+            )
+            display_df = display_df[mask]
+
+        # Display the table
+        st.dataframe(display_df, use_container_width=True, height=400)
+
+        # Summary statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Displayed Records", len(display_df))
+        with col2:
+            if "avg_grade" in display_df.columns:
+                avg_grade = display_df["avg_grade"].mean()
+                st.metric("Average Grade", f"{avg_grade:.1f}%")
+        with col3:
+            if "gender" in display_df.columns:
+                female_pct = (display_df["gender"] == "Female").mean() * 100
+                st.metric("Female %", f"{female_pct:.1f}%")
+
 
 def main():
-    """
-    Main function to run the Streamlit app with enhanced features.
-    """
-    # Configure page settings
-    st.set_page_config(
-        page_title="Student Demographic Insights",
-        page_icon="🎓",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
-    # Apply custom CSS
-    apply_custom_css()
-    
-    # Set title and description
-    st.title("🎓 Student Demographic Insights Dashboard")
-    st.markdown("""
-    Explore and analyze student demographic data with interactive visualizations.
-    Use the filters in the sidebar to customize the data view.
-    """)
-    
-    # Add a loading spinner while data is being loaded
-    with st.spinner('Loading data...'):
-        # Load data
+    """Main application function."""
+    # Header
+    st.title("👥 Demographic Insights Dashboard")
+    st.markdown("**Comprehensive analysis of student demographics and their impact on academic performance**")
+    st.markdown("---")
+
+    # Load data
+    with st.spinner("Loading demographic data..."):
         df = load_demographic_data()
-        
-        if df.empty:
-            st.error("❌ Failed to load data. Please check the database connection and try again.")
-            if st.button("Retry loading data"):
-                st.experimental_rerun()
-            return
-    
-    # Set up sidebar filters
-    with st.sidebar:
-        st.markdown("### Data Filters")
-        filters = setup_sidebar(df)
-    
-    # Display data summary in the sidebar
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### Data Summary")
-        st.markdown(f"📊 **Total Students:** {len(df):,}")
-        if 'avg_grade' in df.columns:
-            st.markdown(f"⭐ **Average Grade:** {df['avg_grade'].mean():.1f}/100")
-        if 'gender' in df.columns:
-            gender_dist = df['gender'].value_counts(normalize=True).mul(100)
-            st.markdown("👥 **Gender Distribution:**")
-            for gender, pct in gender_dist.items():
-                st.markdown(f"   - {gender}: {pct:.1f}%")
-    
+
+    if df.empty:
+        st.error("No data available. Please check your database connection and ensure data exists.")
+        return
+
+    # Setup sidebar filters
+    filters = setup_sidebar(df)
+
     # Apply filters
-    filtered_df = filter_data(df, filters)
-    
-    # Show filter summary
-    filter_summary = []
-    if filters.get('grades'):
-        filter_summary.append(f"**Grades:** {', '.join(filters['grades'])}")
-    if filters.get('gender') != "All":
-        filter_summary.append(f"**Gender:** {filters['gender']}")
-    if filters.get('age_group') != "All":
-        filter_summary.append(f"**Age Group:** {filters['age_group']}")
-    if filters.get('location') != "All":
-        filter_summary.append(f"**Location:** {filters['location']}")
-    
-    if filter_summary:
-        with st.expander("🔍 Active Filters", expanded=False):
-            st.markdown(" | ".join(filter_summary))
-    
-    # Display metrics with loading spinner
-    with st.spinner('Updating metrics...'):
-        display_metrics(filtered_df, show_advanced=filters.get('show_advanced_metrics', False))
-    
-    # Add a divider
-    st.markdown("---")
-    
-    # Display visualizations with loading spinner
-    with st.spinner('Generating visualizations...'):
-        display_demographic_visualizations(filtered_df, show_advanced=filters.get('show_advanced_metrics', False))
-    
-    # Display raw data if enabled
-    if filters.get('show_raw_data', False):
-        st.markdown("---")
-        st.subheader("📋 Raw Data")
-        st.dataframe(
-            filtered_df,
-            use_container_width=True,
-            height=400,
-            column_config={
-                'student_name': 'Student Name',
-                'gender': 'Gender',
-                'age': 'Age',
-                'age_group': 'Age Group',
-                'location_type': 'Location',
-                'class_name': 'Class',
-                'avg_grade': st.column_config.NumberColumn('Avg Grade', format='%.1f')
-            },
-            hide_index=True
-        )
-    
-    # Add footer
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center; color: #666; font-size: 0.9em; margin-top: 2em;'>
-            <p>📅 Last updated: {}</p>
-            <p>📊 Data source: Student Information System</p>
-        </div>
-        """.format(pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')),
-        unsafe_allow_html=True
+    filtered_df = apply_filters(df, filters)
+
+    if filtered_df.empty:
+        st.warning("No data matches the selected filters. Please adjust your filter criteria.")
+        return
+
+    # Display key metrics
+    display_key_metrics(filtered_df)
+
+    # Create tabs for different analyses
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["📊 Demographics", "🌍 Geographic", "📈 Performance", "🔗 Correlations", "📋 Data Table"]
     )
+
+    with tab1:
+        create_demographic_charts(filtered_df, filters)
+
+    with tab2:
+        create_geographic_analysis(filtered_df, filters)
+
+    with tab3:
+        create_performance_analysis(filtered_df, filters)
+
+    with tab4:
+        create_correlation_analysis(filtered_df, filters)
+
+    with tab5:
+        create_detailed_data_table(filtered_df)
+
+    # Footer
+    st.markdown("---")
+    st.markdown(f"**Data last updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.markdown(f"**Total records analyzed:** {len(filtered_df):,} out of {len(df):,}")
+
 
 if __name__ == "__main__":
     main()

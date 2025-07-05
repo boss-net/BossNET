@@ -19,58 +19,58 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 1. Fork the repository
 2. Clone your fork:
-   ```bash
-   git clone https://github.com/your-username/student-data-bangladesh.git
-   cd student-data-bangladesh
-   ```
+   \`\`\`bash
+   git clone https://github.com/your-username/bossnet.git
+   cd bossnet
+   \`\`\`
 
 3. Set up your development environment:
-   ```bash
+   \`\`\`bash
    ./setup_dev_environment.sh
-   ```
+   \`\`\`
 
 4. Create a new branch for your feature/fix:
-   ```bash
+   \`\`\`bash
    git checkout -b feature/your-feature-name
-   ```
+   \`\`\`
 
 ## Development Workflow
 
 1. Activate the virtual environment:
-   ```bash
+   \`\`\`bash
    source venv/bin/activate
-   ```
+   \`\`\`
 
 2. Make your changes following our coding standards
 
 3. Run tests locally:
-   ```bash
+   \`\`\`bash
    pytest
-   ```
+   \`\`\`
 
 4. Format your code:
-   ```bash
+   \`\`\`bash
    black .
    isort .
-   ```
+   \`\`\`
 
 5. Check code quality:
-   ```bash
+   \`\`\`bash
    flake8
-   ```
+   \`\`\`
 
 ## Submitting Changes
 
 1. Commit your changes:
-   ```bash
+   \`\`\`bash
    git add .
    git commit -m "Description of your changes"
-   ```
+   \`\`\`
 
 2. Push to your fork:
-   ```bash
+   \`\`\`bash
    git push origin feature/your-feature-name
-   ```
+   \`\`\`
 
 3. Create a Pull Request through GitHub
 
@@ -94,7 +94,7 @@ We follow these coding standards:
 - Comments for complex logic
 
 Example:
-```python
+\`\`\`python
 def calculate_student_performance(
     student_data: pd.DataFrame,
     metrics: List[str]
@@ -110,7 +110,7 @@ def calculate_student_performance(
         Dictionary of calculated metrics
     """
     # Implementation
-```
+\`\`\`
 
 ## Testing Guidelines
 
@@ -121,11 +121,11 @@ def calculate_student_performance(
 - Mock external dependencies
 
 Example:
-```python
+\`\`\`python
 def test_calculate_student_performance_valid_data():
     """Test performance calculation with valid student data."""
     # Test implementation
-```
+\`\`\`
 
 ## Documentation
 
@@ -138,7 +138,7 @@ def test_calculate_student_performance_valid_data():
 ### Documentation Style
 
 Use Markdown for documentation:
-```markdown
+\`\`\`markdown
 # Component Name
 
 ## Overview
@@ -150,7 +150,7 @@ Example usage code or instructions
 ## Parameters
 - `param1`: Description
 - `param2`: Description
-```
+\`\`\`
 
 ## Data Handling
 

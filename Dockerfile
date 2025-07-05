@@ -1,39 +1,37 @@
-# Use official Python image as base
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-# Set working directory
+# Set work directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        postgresql-client \
         build-essential \
-        libpq-dev \
-        git \
-    && apt-get clean \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
+# Copy project
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/data/raw_data \
-    && mkdir -p /app/data/processed_data \
-    && mkdir -p /app/logs
+# Create uploads directory
+RUN mkdir -p uploads
 
-# Set up entrypoint script
-COPY deploy/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Expose port
+EXPOSE 8000
 
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

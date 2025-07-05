@@ -29,7 +29,7 @@ The Bangladesh Student Data Analytics project aims to:
 
 ## System Architecture
 
-```mermaid
+\`\`\`mermaid
 graph TD
     A[Data Sources] --> B[Data Processing]
     B --> C[Analysis Engine]
@@ -37,7 +37,7 @@ graph TD
     C --> E[API]
     D --> F[Dashboards]
     E --> G[External Systems]
-```
+\`\`\`
 
 ## Data Sources
 
@@ -63,12 +63,12 @@ We welcome contributions! Please see our [Contributing Guidelines](contributing/
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/yourusername/student-data-bangladesh/blob/master/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/boss-net/bossnet/blob/master/LICENSE) file for details.
 
 ## Support
 
 For support and questions:
-- Create an issue in the [GitHub repository](https://github.com/yourusername/student-data-bangladesh/issues)
+- Create an issue in the [GitHub repository](https://github.com/boss-net/bossnet/issues)
 - Contact the development team
 - Join our community discussions
 

@@ -1,7 +1,7 @@
 site_name: Bangladesh Student Data Analytics
 site_description: A comprehensive data analysis system for educational data in Bangladesh
 site_author: BdRen Data Analytics Team
-repo_url: https://github.com/yourusername/student-data-bangladesh
+repo_url: https://github.com/boss-net/bossnet
 
 theme:
   name: material
@@ -84,7 +84,7 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/yourusername/student-data-bangladesh
+      link: https://github.com/boss-net/bossnet
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/yourusername
 

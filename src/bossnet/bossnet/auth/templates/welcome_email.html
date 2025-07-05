@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {{ app_name }}!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #eeeeee;
+        }
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #2ecc71;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #27ae60;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px 0;
+            font-size: 12px;
+            color: #7f8c8d;
+            border-top: 1px solid #eeeeee;
+        }
+        .features {
+            margin: 20px 0;
+        }
+        .feature {
+            display: flex;
+            margin-bottom: 15px;
+            align-items: flex-start;
+        }
+        .feature-icon {
+            font-size: 20px;
+            margin-right: 10px;
+            color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to {{ app_name }}!</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{ name }},</h2>
+            <p>Thank you for joining {{ app_name }}! We're excited to have you on board.</p>
+            
+            <p>Get started by logging in to your account:</p>
+            <p style="text-align: center;">
+                <a href="{{ login_url }}" class="button">Go to Dashboard</a>
+            </p>
+            
+            <div class="features">
+                <h3>What you can do:</h3>
+                <div class="feature">
+                    <div class="feature-icon">✓</div>
+                    <div>Access your personalized dashboard</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">✓</div>
+                    <div>Manage your profile and settings</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">✓</div>
+                    <div>Connect with other users</div>
+                </div>
+            </div>
+            
+            <p>If you have any questions or need assistance, don't hesitate to contact our support team.</p>
+            
+            <p>Best regards,<br>The {{ app_name }} Team</p>
+        </div>
+        <div class="footer">
+            <p>© {{ now().year }} {{ app_name }}. All rights reserved.</p>
+            <p>You're receiving this email because you recently created a new {{ app_name }} account.</p>
+            <p>Need help? Contact our support team at <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+        </div>
+    </div>
+</body>
+</html>

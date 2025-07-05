@@ -30,6 +30,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
 # Override the SQLAlchemy URL from settings
 def get_url() -> str:
     return settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql")
