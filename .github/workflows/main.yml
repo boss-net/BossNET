@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.11'
   POETRY_VERSION: '1.6.1'
 
 jobs:
@@ -29,13 +29,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11']
         os: [ubuntu-latest]
-        exclude:
-          - python-version: '3.8'
-            os: windows-latest
-          - python-version: '3.9'
-            os: windows-latest
 
     steps:
     - name: Checkout code
