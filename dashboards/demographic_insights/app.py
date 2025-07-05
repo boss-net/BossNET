@@ -23,9 +23,7 @@ from sqlalchemy import create_engine, text
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Page configuration
-st.set_page_config(
-    page_title="Demographic Insights Dashboard", page_icon="👥", layout="wide", initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Demographic Insights Dashboard", page_icon="👥", layout="wide", initial_sidebar_state="expanded")
 
 # Custom CSS for better styling
 st.markdown(

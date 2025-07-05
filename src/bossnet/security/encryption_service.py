@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from audit.audit_service import AuditService
+from config.settings import settings
 from cryptography.fernet import Fernet, MultiFernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
@@ -20,8 +22,6 @@ from pydantic import BaseModel
 from sqlalchemy import Boolean, Column, DateTime, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import Session
 
-from audit.audit_service import AuditService
-from config.settings import settings
 from database.base import Base
 
 

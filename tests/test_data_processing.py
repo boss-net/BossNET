@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pandas as pd
 import pytest
-
 from src.data_processing.extractors import CSVExtractor, DatabaseExtractor, ExcelExtractor
 from src.data_processing.loaders import DatabaseLoader, ValidationLoader
 from src.data_processing.pipeline import DataPipeline, PipelineConfig, PipelineResult

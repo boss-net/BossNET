@@ -1,11 +1,12 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, List, Optional, Set
-from pydantic import EmailStr, Field, validator, SecretStr
 
-from .base import DomainModel
+from pydantic import EmailStr, Field, SecretStr, validator
+
+from ..domain.events import UserEmailVerified, UserPasswordChanged, UserRegistered
 from ..value_objects.email import Email
-from ..domain.events import UserRegistered, UserEmailVerified, UserPasswordChanged
+from .base import DomainModel
 
 
 class Password:
@@ -115,7 +116,7 @@ class User(DomainModel):
 
     def record_event(self, event: Any) -> None:
         """Record a domain event.
-        
+
         Args:
             event: The event to record. Can be any object.
         """
@@ -130,7 +131,7 @@ class User(DomainModel):
     @property
     def events(self) -> List[Any]:
         """Get all recorded domain events.
-        
+
         Returns:
             List of recorded events
         """

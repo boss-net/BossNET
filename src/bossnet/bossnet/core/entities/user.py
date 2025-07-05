@@ -1,11 +1,11 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Set
-from pydantic import EmailStr, Field, validator, SecretStr
 
+from core.domain.events import UserEmailVerified, UserPasswordChanged, UserRegistered
 from core.entities.base import DomainModel
 from core.value_objects.email import Email
-from core.domain.events import UserRegistered, UserEmailVerified, UserPasswordChanged
+from pydantic import EmailStr, Field, SecretStr, validator
 
 
 class Password:

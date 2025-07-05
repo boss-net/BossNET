@@ -1,15 +1,14 @@
-from typing import List, Optional
 from datetime import datetime
-
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional
 
 from core.entities.user import User, UserRole
 from core.repositories.base import UserRepository as UserRepositoryBase
 from infrastructure.persistence.sqlalchemy_repository import SQLAlchemyRepository
 
 # Import your SQLAlchemy User model here
-from models.user_model import UserDB, RefreshToken
+from models.user_model import RefreshToken, UserDB
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class UserRepository(UserRepositoryBase, SQLAlchemyRepository[User, UserDB]):

@@ -4,7 +4,6 @@ from uuid import UUID
 
 from core.domain.entities.base import Entity
 
-
 T = TypeVar("T", bound=Entity)
 
 

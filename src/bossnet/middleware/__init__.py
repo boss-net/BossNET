@@ -5,8 +5,8 @@ This package contains various middleware components for security, request proces
 and response handling.
 """
 
-from .security_headers import SecurityHeadersMiddleware, setup_security_middleware
 from .request_validation import RequestValidationMiddleware
+from .security_headers import SecurityHeadersMiddleware, setup_security_middleware
 
 __all__ = [
     "SecurityHeadersMiddleware",

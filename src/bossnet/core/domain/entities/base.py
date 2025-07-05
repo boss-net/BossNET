@@ -1,15 +1,16 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 
 class DomainModel(BaseModel):
     """Base domain model that all domain entities will inherit from."""
-    
+
     model_config = {
         "arbitrary_types_allowed": True,
         "from_attributes": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()}
+        "json_encoders": {datetime: lambda v: v.isoformat()},
     }
 
     def to_dict(self) -> Dict[str, Any]:

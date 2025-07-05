@@ -15,13 +15,13 @@ import string
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
+from config.security import security_settings
 from fastapi import HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from config import settings
-from config.security import security_settings
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

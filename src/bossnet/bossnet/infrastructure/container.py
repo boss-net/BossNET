@@ -4,7 +4,6 @@ Dependency injection container using dependency-injector
 
 from dependency_injector import containers, providers
 from dependency_injector.wiring import Provide, inject
-
 from src.application.services.auth_service import AuthService
 from src.application.services.user_service import UserService
 from src.config.settings import get_settings

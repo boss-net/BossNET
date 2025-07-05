@@ -297,9 +297,7 @@ def create_filters():
                                     dbc.Button(
                                         "🔄 Refresh Data", id="refresh-btn", color="primary", size="sm", className="me-2"
                                     ),
-                                    dbc.Button(
-                                        "📊 Export Data", id="export-btn", color="success", size="sm", className="me-2"
-                                    ),
+                                    dbc.Button("📊 Export Data", id="export-btn", color="success", size="sm", className="me-2"),
                                     dbc.Switch(
                                         id="auto-refresh-switch",
                                         label="Auto Refresh (30s)",

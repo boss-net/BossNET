@@ -14,7 +14,6 @@ import pandas as pd
 from celery import Celery
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.config.settings import settings
 from src.data_processing.extractors import CSVExtractor, DatabaseExtractor, ExcelExtractor
 from src.data_processing.loaders import DatabaseLoader, ValidationLoader

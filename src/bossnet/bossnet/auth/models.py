@@ -1,12 +1,10 @@
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel, Field, EmailStr, HttpUrl, validator, root_validator
-from pydantic.class_validators import root_validator
+from typing import Any, Dict, List, Optional, Union
+
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
-from datetime import datetime
-from enum import Enum
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, root_validator, validator
+from pydantic.class_validators import root_validator
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

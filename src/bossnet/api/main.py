@@ -3,28 +3,28 @@ Main FastAPI application for Bangladesh Student Data API
 """
 
 import logging
-from fastapi import FastAPI, Request, status, Depends, HTTPException
+import os
+from typing import Any, Dict, List, Optional
+
+# Import all routers
+from api.endpoints import auth, students
+from auth.service import AuthService
+from config.security import security_settings
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
-from typing import Optional, List, Dict, Any
-import os
-
-from config import settings
-from config.security import security_settings
-from database.base import Base, engine, get_db
-from auth.service import AuthService
+from middleware.request_validation import RequestValidationMiddleware
 
 # Import security middleware
 from middleware.security_headers import SecurityHeadersMiddleware, setup_security_middleware
-from middleware.request_validation import RequestValidationMiddleware
 
-# Import all routers
-from api.endpoints import students, auth
+from config import settings
+from database.base import Base, engine, get_db
 
 # Configure logging
 logging.basicConfig(

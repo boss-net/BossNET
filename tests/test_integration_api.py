@@ -12,7 +12,6 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.infrastructure.persistence.sqlalchemy.database import get_async_session
 from src.infrastructure.persistence.sqlalchemy.models.student import Enrollment, School, Student
 from src.infrastructure.persistence.sqlalchemy.models.user import User

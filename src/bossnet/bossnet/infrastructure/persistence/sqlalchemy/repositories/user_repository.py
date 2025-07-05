@@ -7,7 +7,6 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.core.domain.entities.user import User
 from src.core.domain.repositories.user_repository import UserRepositoryInterface
 from src.infrastructure.persistence.sqlalchemy.models.user import UserModel

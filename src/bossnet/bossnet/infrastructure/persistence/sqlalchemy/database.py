@@ -7,7 +7,6 @@ from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
-
 from src.config.settings import settings
 
 # Create declarative base

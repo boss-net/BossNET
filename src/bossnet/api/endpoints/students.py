@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Security
-from sqlalchemy.orm import Session
-from typing import List, Optional
 from datetime import date
+from typing import List, Optional
 
-from auth.dependencies import get_current_active_user, admin_required, teacher_or_admin_required
+from auth.dependencies import admin_required, get_current_active_user, teacher_or_admin_required
 from auth.models import UserInDB, UserRole
-from models.student import StudentCreate, StudentResponse, StudentUpdate, PaginatedStudentResponse
-from models.student_model import StudentDB, Gender
+from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
+from models.student import PaginatedStudentResponse, StudentCreate, StudentResponse, StudentUpdate
+from models.student_model import Gender, StudentDB
+from sqlalchemy.orm import Session
+
 from database.base import get_db
 
 router = APIRouter(

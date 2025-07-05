@@ -12,13 +12,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
-
-from config import settings
 from infrastructure.container import container
 from interfaces.api.v1.api import api_router
 from src.infrastructure.persistence.sqlalchemy.database import engine
 from src.middleware.security_headers import SecurityHeadersMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

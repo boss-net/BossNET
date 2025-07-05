@@ -2,6 +2,7 @@
 Database models for the Bangladesh Education Data Warehouse.
 """
 
+from ..infrastructure.persistence.sqlalchemy.models.user import UserRoleModel
 from .academic import AssessmentModel, AssessmentResultModel, AttendanceModel, EnrollmentModel, GradeModel, SubjectModel
 from .base import Base
 from .geography import DistrictModel, DivisionModel, UpazilaModel
@@ -9,7 +10,6 @@ from .performance import PerformanceMetricModel, SchoolPerformanceModel, Student
 from .school import ClassroomModel, SchoolModel, TeacherModel
 from .student import GuardianModel, StudentModel
 from .user import RefreshTokenModel, RoleModel, UserModel
-from ..infrastructure.persistence.sqlalchemy.models.user import UserRoleModel
 
 __all__ = [
     # Base

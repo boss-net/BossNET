@@ -3,11 +3,12 @@
 Database initialization script for the Student Performance Dashboard.
 This script creates the database and loads sample data.
 """
-import os
-import sys
 import logging
+import os
 import subprocess
+import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Configure logging

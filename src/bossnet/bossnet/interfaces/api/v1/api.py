@@ -3,7 +3,6 @@ API v1 router configuration
 """
 
 from fastapi import APIRouter
-
 from src.interfaces.api.v1.endpoints import auth, users
 
 api_router = APIRouter()

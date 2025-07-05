@@ -3,13 +3,14 @@ Request validation middleware for FastAPI application.
 Implements request validation and sanitization.
 """
 
-import re
 import json
-from fastapi import Request, HTTPException
+import logging
+import re
+from typing import Any, Dict, List, Optional, Pattern
+
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from typing import Dict, Any, Optional, List, Pattern
-import logging
 
 logger = logging.getLogger(__name__)
 

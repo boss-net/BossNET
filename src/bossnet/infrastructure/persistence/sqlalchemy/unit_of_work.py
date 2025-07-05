@@ -1,10 +1,9 @@
-from typing import Any, Callable, TypeVar, Generic
 from contextlib import asynccontextmanager
-
-from sqlalchemy.ext.asyncio import AsyncSession, async_scoped_session
+from typing import Any, Callable, Generic, TypeVar
 
 from core.domain.repositories.user_repository import UserRepository as UserRepositoryPort
 from infrastructure.persistence.sqlalchemy.repositories.user_repository import UserRepository
+from sqlalchemy.ext.asyncio import AsyncSession, async_scoped_session
 
 T = TypeVar("T")
 

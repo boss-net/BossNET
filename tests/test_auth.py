@@ -5,7 +5,6 @@ Authentication tests
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.infrastructure.persistence.sqlalchemy.models.user import UserModel
 from src.utils.security_utils import hash_password
 

@@ -1,25 +1,25 @@
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Union
 import secrets
 import string
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from pydantic import EmailStr, ValidationError
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
-
-from database.base import get_db
-from models.user_model import UserDB, RefreshToken
-from .models import TokenData, UserInDB, UserRole, UserCreate, Token, TokenPayload, PasswordMixin, UserResponse
-from config import settings
-
-# Import email service
-from .email_service import EmailService, EmailTemplate
+from models.user_model import RefreshToken, UserDB
 
 # Import password hashing utilities
 from passlib.context import CryptContext
+from pydantic import EmailStr, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from config import settings
+from database.base import get_db
+
+# Import email service
+from .email_service import EmailService, EmailTemplate
+from .models import PasswordMixin, Token, TokenData, TokenPayload, UserCreate, UserInDB, UserResponse, UserRole
 
 # Initialize password context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)

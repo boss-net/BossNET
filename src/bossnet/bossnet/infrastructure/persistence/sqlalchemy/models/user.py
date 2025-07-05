@@ -1,10 +1,9 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from core.entities.user import UserRole, UserStatus
 from sqlalchemy import ARRAY, JSON, Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Table, event
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
-
-from core.entities.user import UserRole, UserStatus
 
 from .base import Base
 

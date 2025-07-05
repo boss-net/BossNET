@@ -15,18 +15,18 @@ from urllib.parse import parse_qs, urlencode
 
 import aiohttp
 import jwt
+from audit.audit_service import AuditService
+from auth.service import AuthService
+from config.settings import settings
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 from fastapi import HTTPException, status
+from models.user import UserModel
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy.orm import Session
 
-from audit.audit_service import AuditService
-from auth.service import AuthService
-from config.settings import settings
 from database.base import get_db
-from models.user import UserModel
 
 
 class OAuthProvider(BaseModel):

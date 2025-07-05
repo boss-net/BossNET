@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Date, Enum, DateTime, Index
+
+from sqlalchemy import Column, Date, DateTime, Enum, Index, Integer, String
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.sql import func
 

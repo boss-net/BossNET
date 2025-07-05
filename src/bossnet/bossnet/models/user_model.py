@@ -1,13 +1,15 @@
-from datetime import datetime, timedelta
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, ForeignKey, Index
-from sqlalchemy.sql import func, text
-from sqlalchemy.dialects.postgresql import ENUM as PgEnum, UUID
-from sqlalchemy.orm import relationship
 import uuid
+from datetime import datetime, timedelta
 
-from database.base import Base
-from auth.models import UserRole, PasswordMixin
+from auth.models import PasswordMixin, UserRole
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, String
+from sqlalchemy.dialects.postgresql import ENUM as PgEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func, text
+
 from config import settings
+from database.base import Base
 
 
 class UserDB(Base, PasswordMixin):

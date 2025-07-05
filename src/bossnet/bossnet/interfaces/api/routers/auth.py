@@ -1,10 +1,9 @@
+from core.entities.user import User, UserCreate
+from core.services.auth_service import AuthenticationError, AuthService
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
-
-from core.entities.user import User, UserCreate
-from core.services.auth_service import AuthService, AuthenticationError
 from infrastructure.container import container
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

@@ -1,7 +1,8 @@
 import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 # Load environment variables from .env file
 load_dotenv()

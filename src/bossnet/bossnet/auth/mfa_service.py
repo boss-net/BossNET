@@ -13,19 +13,19 @@ from urllib.parse import quote
 
 import pyotp
 import qrcode
+from audit.audit_service import AuditService
+from auth.email_service import EmailService
+from config.settings import settings
 from fastapi import HTTPException, status
+from models.user import UserModel
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Session, relationship
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client as TwilioClient
-
-from audit.audit_service import AuditService
-from auth.email_service import EmailService
-from config.settings import settings
-from database.base import Base
-from models.user import UserModel
 from utils.security_utils import generate_secure_token
+
+from database.base import Base
 
 
 class MFAMethod(str):

@@ -13,7 +13,7 @@ __license__ = "MIT"
 
 # Import key modules
 from .config import settings
-from .database import Base, get_db, get_async_db
+from .database import Base, get_async_db, get_db
 
 # Import models to ensure they are registered with SQLAlchemy
 from .models import *  # noqa: F401, F403

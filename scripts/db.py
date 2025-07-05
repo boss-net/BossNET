@@ -17,11 +17,11 @@ if project_root not in sys.path:
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-
-from alembic import command
 from src.config import settings
 from src.database.base import Base, async_engine, sync_engine
 from src.models import *  # Import all models to ensure they're registered with SQLAlchemy
+
+from alembic import command
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

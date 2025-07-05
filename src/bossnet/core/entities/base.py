@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, Generic, Optional, TypeVar
+
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
@@ -16,7 +17,7 @@ class DomainModel(BaseModel):
         "arbitrary_types_allowed": True,
         "from_attributes": True,
         "populate_by_name": True,
-        "use_enum_values": True
+        "use_enum_values": True,
     }
 
     def to_dict(self) -> Dict[str, Any]:

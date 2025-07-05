@@ -2,13 +2,14 @@
 """
 Test database connection and data loading.
 """
+import logging
 import os
 import sys
-import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-from dotenv import load_dotenv
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -44,8 +45,8 @@ def test_connection():
             result = conn.execute(
                 text(
                     """
-                SELECT table_name 
-                FROM information_schema.tables 
+                SELECT table_name
+                FROM information_schema.tables
                 WHERE table_schema = 'public';
             """
                 )
@@ -65,7 +66,7 @@ def test_connection():
             result = conn.execute(
                 text(
                     """
-                SELECT 
+                SELECT
                     c.class_name,
                     COUNT(DISTINCT s.student_id) as student_count,
                     ROUND(AVG(g.grade), 2) as avg_grade

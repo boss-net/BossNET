@@ -2,7 +2,6 @@ from typing import Any, List
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-
 from src.application.services.user_service import UserService
 from src.core.domain.entities.user import User
 from src.infrastructure.container import Container

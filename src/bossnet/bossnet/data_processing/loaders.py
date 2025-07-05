@@ -13,7 +13,6 @@ from pydantic import BaseModel
 from sqlalchemy import insert, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.infrastructure.persistence.sqlalchemy.database import get_async_session
 from src.infrastructure.persistence.sqlalchemy.models.student import Enrollment, School, Student
 from src.infrastructure.persistence.sqlalchemy.models.user import User

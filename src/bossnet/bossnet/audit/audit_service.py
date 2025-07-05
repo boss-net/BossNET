@@ -10,13 +10,13 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
+from config.settings import settings
 from fastapi import Request
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text, and_, desc, or_
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Session
 
-from config.settings import settings
 from database.base import Base, get_db
 
 

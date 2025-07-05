@@ -5,33 +5,32 @@ This module provides user authentication, authorization, and user management fun
 It includes JWT token handling, password hashing, role-based access control, and email notifications.
 """
 
+from .dependencies import (
+    get_current_active_superuser,
+    get_current_active_user,
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
+from .email_service import EmailService, EmailTemplate
+
 # Import key components for easier access
 from .models import (
+    EmailVerification,
+    Message,
+    NewPassword,
+    PasswordChange,
+    PasswordReset,
     Token,
     TokenData,
+    TokenPayload,
     UserCreate,
     UserInDB,
     UserResponse,
     UserRole,
     UserUpdate,
-    PasswordReset,
-    PasswordChange,
-    EmailVerification,
-    Message,
-    NewPassword,
-    TokenPayload,
 )
-
 from .service import AuthService
-from .dependencies import (
-    get_current_user,
-    get_current_active_user,
-    get_current_active_superuser,
-    get_password_hash,
-    verify_password,
-)
-
-from .email_service import EmailService, EmailTemplate
 
 __all__ = [
     "AuthService",

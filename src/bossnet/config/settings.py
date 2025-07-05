@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
         default=30,
         description="Access token expiration time in minutes",
-        json_schema_extra={"env": "ACCESS_TOKEN_EXPIRE_MINUTES"}
+        json_schema_extra={"env": "ACCESS_TOKEN_EXPIRE_MINUTES"},
     )
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
@@ -97,8 +97,8 @@ class Settings(BaseSettings):
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         if self.DATABASE_URL:
-            if not self.DATABASE_URL.startswith('postgresql+asyncpg'):
-                return self.DATABASE_URL.replace('postgresql://', 'postgresql+asyncpg://')
+            if not self.DATABASE_URL.startswith("postgresql+asyncpg"):
+                return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
             return self.DATABASE_URL
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
@@ -121,23 +121,23 @@ class Settings(BaseSettings):
             return [host.strip() for host in v.split(",")]
         return v
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def assemble_cors_origins(cls, values: dict) -> dict:
-        if 'CORS_ORIGINS' in values:
-            cors_origins = values['CORS_ORIGINS']
+        if "CORS_ORIGINS" in values:
+            cors_origins = values["CORS_ORIGINS"]
             if isinstance(cors_origins, str):
                 if not cors_origins.startswith("["):
-                    values['CORS_ORIGINS'] = [i.strip() for i in cors_origins.split(",") if i.strip()]
+                    values["CORS_ORIGINS"] = [i.strip() for i in cors_origins.split(",") if i.strip()]
             elif not isinstance(cors_origins, list):
                 raise ValueError("CORS_ORIGINS must be a string or a list of strings")
         return values
 
-    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES", mode='before')
+    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES", mode="before")
     def parse_access_token_expire_minutes(cls, v):
         if isinstance(v, str):
             # Extract just the number if there's a comment
-            v = v.split('#')[0].strip()
+            v = v.split("#")[0].strip()
             try:
                 return int(v)
             except ValueError:

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
-from ..entities.user import User, TokenPayload, UserStatus
+from ..entities.user import TokenPayload, User, UserStatus
 
 
 class AuthError(Exception):

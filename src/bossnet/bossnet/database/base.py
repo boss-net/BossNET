@@ -1,12 +1,11 @@
 import os
 from typing import AsyncGenerator, Generator, Optional
 
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, AsyncEngine
-from sqlalchemy.orm import sessionmaker, declarative_base, Session, sessionmaker
+from sqlalchemy import MetaData, create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.pool import NullPool
-
 from src.config import settings
 
 # Naming convention for database constraints

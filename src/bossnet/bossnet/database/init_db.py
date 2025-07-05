@@ -1,8 +1,9 @@
 import logging
+
+from models.student_model import Base, Gender, StudentDB
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from models.student_model import Base, StudentDB, Gender
 from database.base import engine
 
 logging.basicConfig(level=logging.INFO)

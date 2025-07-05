@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
-from core.entities.user import User, UserCreate, UserUpdate, UserRole
+from core.entities.user import User, UserCreate, UserRole, UserUpdate
 from core.repositories.base import UserRepository
 
 

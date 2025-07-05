@@ -1,21 +1,15 @@
-from datetime import datetime, timedelta
-from typing import Optional, Tuple, List
 import uuid
-
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
 
 from core.config import settings
-from core.domain.entities.user import User, UserRole, UserStatus, TokenPayload
-from core.domain.services.auth_service import (
-    AuthService as AuthServicePort,
-    AuthError,
-    InvalidCredentialsError,
-    AccountLockedError,
-    EmailNotVerifiedError,
-    TokenError,
-)
+from core.domain.entities.user import TokenPayload, User, UserRole, UserStatus
 from core.domain.repositories.user_repository import UserRepository as UserRepositoryPort
+from core.domain.services.auth_service import AccountLockedError, AuthError
+from core.domain.services.auth_service import AuthService as AuthServicePort
+from core.domain.services.auth_service import EmailNotVerifiedError, InvalidCredentialsError, TokenError
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 
 class AuthService(AuthServicePort):

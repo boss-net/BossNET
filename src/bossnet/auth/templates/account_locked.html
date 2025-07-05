@@ -67,24 +67,24 @@
         <div class="content">
             <h2>Hello {{ name }},</h2>
             <p>We've detected too many unsuccessful login attempts for your account. As a security measure, your account has been temporarily locked.</p>
-            
+
             <div class="warning">
                 <p><strong>Account Locked Until:</strong></p>
                 <div class="unlock-time">{{ unlock_time }}</div>
                 <p>You will be able to attempt logging in again after this time.</p>
             </div>
-            
+
             <p>If this was you, you can wait until the lockout period ends and try again. For security reasons, we cannot unlock your account before this time.</p>
-            
+
             <p>If you did not attempt to log in, someone else may be trying to access your account. We recommend that you:</p>
             <ol>
                 <li>Change your password immediately after regaining access to your account</li>
                 <li>Enable two-factor authentication if available</li>
                 <li>Check your account for any suspicious activity</li>
             </ol>
-            
+
             <p>If you continue to experience issues or have any concerns, please contact our support team.</p>
-            
+
             <p>Best regards,<br>The {{ app_name }} Security Team</p>
         </div>
         <div class="footer">

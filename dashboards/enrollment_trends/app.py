@@ -33,9 +33,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Page configuration
-st.set_page_config(
-    page_title="📈 Enrollment Trends Dashboard", page_icon="📈", layout="wide", initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="📈 Enrollment Trends Dashboard", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
 
 # Custom CSS
 st.markdown(

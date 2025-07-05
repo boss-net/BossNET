@@ -13,11 +13,10 @@ if project_root not in sys.path:
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
-
+from src.config import settings
 from src.database.base import Base
 from src.models.student_model import StudentDB
 from src.models.user_model import UserDB
-from src.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,8 +40,8 @@ def init_db():
 
 def create_initial_admin():
     """Create an initial admin user if none exists."""
-    from src.auth.models import get_password_hash
     from sqlalchemy.orm import sessionmaker
+    from src.auth.models import get_password_hash
 
     Session = sessionmaker(bind=engine)
     session = Session()

@@ -1,11 +1,13 @@
-from enum import Enum
-from typing import Dict, Any, Optional
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from enum import Enum
 from pathlib import Path
+from typing import Any, Dict, Optional
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from config import settings
 
 

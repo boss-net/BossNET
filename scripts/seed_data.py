@@ -13,10 +13,6 @@ from typing import Any, Dict, List
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from werkzeug.security import generate_password_hash
-
 from config.settings import settings
 from models.academic import AssessmentModel, AssessmentResultModel, EnrollmentModel, GradeModel, SubjectModel
 
@@ -26,6 +22,9 @@ from models.geography import DistrictModel, DivisionModel, UpazilaModel
 from models.school import SchoolModel, TeacherModel
 from models.student import StudentModel
 from models.user import RoleModel, UserModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from werkzeug.security import generate_password_hash
 
 # Database setup
 engine = create_engine(settings.SYNC_DATABASE_URL)

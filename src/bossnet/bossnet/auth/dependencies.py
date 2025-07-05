@@ -1,9 +1,10 @@
 from typing import List, Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
 
 from auth.models import UserInDB, UserRole
 from auth.service import AuthService
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+
 from config import settings
 
 # OAuth2 scheme

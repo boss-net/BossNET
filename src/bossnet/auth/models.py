@@ -1,12 +1,10 @@
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel, Field, EmailStr, HttpUrl, validator, root_validator
-from pydantic.class_validators import root_validator
+from typing import Any, Dict, List, Optional, Union
+
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
-from datetime import datetime
-from enum import Enum
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, root_validator, validator
+from pydantic.class_validators import root_validator
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -16,9 +14,7 @@ class TokenBase(BaseModel):
     token: str
     token_type: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class Token(TokenBase):
@@ -85,10 +81,7 @@ class UserInDBBase(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {
-        "from_attributes": True,
-        "json_encoders": {datetime: lambda v: v.isoformat()}
-    }
+    model_config = {"from_attributes": True, "json_encoders": {datetime: lambda v: v.isoformat()}}
 
 
 class UserInDB(UserInDBBase):

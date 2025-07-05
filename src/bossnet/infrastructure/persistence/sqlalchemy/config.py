@@ -1,10 +1,9 @@
 from typing import AsyncGenerator, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import NullPool
-
 from core.config import settings
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 
 # Create async engine
 engine = create_async_engine(
@@ -72,11 +71,10 @@ async def get_scoped_session() -> AsyncGenerator[AsyncSession, None]:
 
 def create_tables():
     """Create all database tables."""
-    from sqlalchemy.schema import CreateSchema
-    from sqlalchemy import inspect
-
     # Import all models here to ensure they are registered with SQLAlchemy
     from infrastructure.persistence.sqlalchemy.models import user  # noqa
+    from sqlalchemy import inspect
+    from sqlalchemy.schema import CreateSchema
 
     async def _create_tables():
         # Create schema if it doesn't exist
@@ -96,7 +94,7 @@ def create_tables():
 
 def drop_tables():
     """Drop all database tables."""
-    from sqlalchemy.schema import DropSchema, CreateSchema
+    from sqlalchemy.schema import CreateSchema, DropSchema
 
     async def _drop_tables():
         async with engine.begin() as conn:

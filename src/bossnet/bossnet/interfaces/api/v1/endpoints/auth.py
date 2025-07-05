@@ -7,7 +7,6 @@ from typing import Any
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-
 from src.application.services.auth_service import AuthService
 from src.infrastructure.container import Container
 from src.interfaces.api.v1.schemas.token import Token, TokenRefresh

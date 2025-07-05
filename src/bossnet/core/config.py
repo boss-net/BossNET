@@ -48,10 +48,7 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    model_config = {
-        "case_sensitive": True,
-        "env_file": ".env"
-    }
+    model_config = {"case_sensitive": True, "env_file": ".env"}
 
 
 # Create settings instance

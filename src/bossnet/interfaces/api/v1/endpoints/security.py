@@ -5,15 +5,15 @@ Security API endpoints for OAuth2, MFA, Audit, and Vulnerability Management
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-
 from audit.audit_service import AuditSearchRequest, AuditService, AuditStatistics
 from auth.dependencies import admin_required, get_current_active_user
 from auth.mfa_service import MFAService, MFAVerificationRequest, TOTPSetupResponse
 from auth.models import UserInDB
 from auth.oauth2_service import OAuth2Service, OAuthUserInfo
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from database.base import get_db
 from security.encryption_service import EncryptionService
 from security.vulnerability_scanner import ScanResult, ScanType, VulnerabilityDetail, VulnerabilityScanner

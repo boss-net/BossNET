@@ -9,7 +9,6 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from src.config.settings import settings
 from src.infrastructure.persistence.sqlalchemy.database import Base, get_database
 from src.main import app

@@ -1,11 +1,10 @@
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 from datetime import datetime
-
-from sqlalchemy import select, update, delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 
 from core.entities.base import DomainModel
 from core.repositories.base import Repository
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ModelType = TypeVar("ModelType")
 EntityType = TypeVar("EntityType", bound=DomainModel)
